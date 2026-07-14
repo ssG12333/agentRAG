@@ -70,8 +70,11 @@
 - `agentrag --help` 输出帮助信息
 - `agentrag --version` → agentrag, version 0.1.0
 
-### 下一步
-- Phase 1
+### Git
+- 提交：`3420098` feat: Phase 0 + Phase 1
+- 提交：`e4f9ebf` docs: 美化 README
+- 远程：git@github.com:ssG12333/agentRAG.git
+- 分支：master
 
 ---
 
