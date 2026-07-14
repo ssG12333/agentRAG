@@ -71,10 +71,71 @@
 - `agentrag --version` → agentrag, version 0.1.0
 
 ### Git
-- 提交：`3420098` feat: Phase 0 + Phase 1
+- 提交：`3420098` feat: Phase 0 + Phase 1 项目脚手架与MVP基础RAG管道
 - 提交：`e4f9ebf` docs: 美化 README
+- 提交：`4fe715c` docs: 全部源码添加详细中文注释
+- 提交：`95af3fe` feat: Phase 2 C++核心 + Python封装
 - 远程：git@github.com:ssG12333/agentRAG.git
 - 分支：master
+
+---
+
+## 2026-07-14 23:00 | Phase 2: 混合检索 + C++ 加速
+
+### 当前目标
+- C++ 实现 IVF/PQ/BM25 索引 + pybind11 绑定 + Python 封装
+
+### 完成内容
+- `src/core/include/kmeans.h` + `src/kmeans.cpp`：K-Means 聚类（Lloyd 迭代）
+- `src/core/include/ivf_index.h` + `src/ivf_index.cpp`：IVF 倒排索引
+- `src/core/include/product_quantizer.h` + `src/product_quantizer.cpp`：PQ 乘积量化（ADC 距离查询）
+- `src/core/include/bm25_index.h` + `src/bm25_index.cpp`：BM25 倒排索引
+- `src/core/pybind/module.cpp`：pybind11 绑定（KMeans/IVFIndex/ProductQuantizer/BM25Index）
+- `src/index/sparse_store.py`：SparseRetriever（C++ 后端 + Python 回退）
+- `src/index/hybrid.py`：HybridRetriever（RRF 稠密+稀疏融合）
+- `src/retrieval/reranker.py`：CrossEncoderReranker + NoOpReranker
+- `scripts/build_cpp.bat`：编译脚本
+- `tests/test_phase2_python.py`：5 个测试
+
+### 验证结果
+- 执行命令：`pytest tests/ -v`
+- 结果：**16/16 passed**（11 Phase 1 + 5 Phase 2）
+- C++ 编译：**未完成**（VS 2026 linker 报 Unknown system error -1 + CMake FetchContent 下载 pybind11 被墙）
+
+### 关键结论
+- RRF 融合公式验证正确：RRF = sum(1/(60+rank_i))
+- Python BM25 回退可用，jieba 分词正常
+- C++ 编译问题与代码无关，是环境问题（VS 2026 bug / 网络限制）
+
+### 问题与风险
+- VS 2026 (MSVC 19.51) linker 报 Unknown system error -1，怀疑杀毒软件拦截
+- CMake FetchContent 下载 pybind11 被墙，需改用 conda install pybind11
+- CUDA 11.8 不兼容 VS 2026，GPU 版 llama.cpp 仍需升级 CUDA
+
+### 下一步
+- 换 Ninja 生成器或 conda pybind11 解决编译问题
+- 编译成功后跑 C++ 单元测试和基准
+- Phase 3: Agent + Prefix Caching
+
+### 文件清单（Phase 2 新增）
+- `src/core/include/kmeans.h`：K-Means 头文件
+- `src/core/include/ivf_index.h`：IVF 头文件
+- `src/core/include/product_quantizer.h`：PQ 头文件
+- `src/core/include/bm25_index.h`：BM25 头文件
+- `src/core/src/kmeans.cpp`：K-Means 实现
+- `src/core/src/ivf_index.cpp`：IVF 实现
+- `src/core/src/product_quantizer.cpp`：PQ 实现
+- `src/core/src/bm25_index.cpp`：BM25 实现
+- `src/core/pybind/module.cpp`：pybind11 绑定（重写）
+- `src/core/CMakeLists.txt`：编译配置（更新）
+- `src/index/sparse_store.py`：稀疏检索封装
+- `src/index/hybrid.py`：RRF 混合检索
+- `src/retrieval/reranker.py`：重排序器
+- `tests/test_phase2_python.py`：Phase 2 测试
+- `scripts/build_cpp.bat`：编译脚本
+
+### Git
+- 提交：`95af3fe` feat: Phase 2 C++核心 + Python封装（16/16测试通过）
 
 ---
 

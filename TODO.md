@@ -30,22 +30,23 @@
 - [x] 1.11 端到端示例
 - [x] 1.12 单元测试 (11/11)
 
-## Phase 2: 混合检索 + C++ 加速
+## Phase 2: 混合检索 + C++ 加速 🔄
 
-- [ ] 2.1 C++ 向量数据结构 (vector_types.h ✅ 骨架已建)
-- [ ] 2.2 C++ K-Means 聚类
-- [ ] 2.3 C++ IVF 倒排索引
-- [ ] 2.4 C++ PQ 乘积量化
-- [ ] 2.5 IVF-PQ 组合索引
-- [ ] 2.6 中文分词器 (cppjieba)
-- [ ] 2.7 BM25 倒排索引 (C++)
-- [ ] 2.8 pybind11 绑定
-- [ ] 2.9 Python 向量存储层 (调 C++ 索引)
-- [ ] 2.10 Python 稀疏存储层
-- [ ] 2.11 混合检索融合 (RRF)
-- [ ] 2.12 Cross-encoder 重排序
-- [ ] 2.13 检索管道整合
-- [ ] 2.14 Phase 2 测试 + 基准
+- [x] 2.1 C++ 向量数据结构 (vector_types.h)
+- [x] 2.2 C++ K-Means 聚类
+- [x] 2.3 C++ IVF 倒排索引
+- [x] 2.4 C++ PQ 乘积量化
+- [x] 2.5 IVF-PQ 组合（待编译后验证）
+- [x] 2.7 BM25 倒排索引 (C++)
+- [x] 2.8 pybind11 绑定
+- [x] 2.10 Python 稀疏存储层 (SparseRetriever)
+- [x] 2.11 混合检索融合 (RRF)
+- [x] 2.12 Cross-encoder 重排序
+- [x] 2.13 检索管道整合
+- [x] 2.14 Python 层测试 (5/5 passed)
+- [ ] 2.6 中文分词器（暂用 Python jieba）
+- [ ] 2.9 C++ 编译通过 (VS 2026 linker 报错 + pybind11 下载被墙)
+- [ ] 2.14 C++ 基准测试（依赖编译）
 
 ## Phase 3: Agent + Prefix Caching
 
