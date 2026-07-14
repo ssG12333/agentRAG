@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.so
+*.pyd
+.eggs/
+
+# C++
+build/
+cmake-build-*/
+*.o
+*.obj
+*.dll
+*.exe
+
+# 虚拟环境
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 模型文件 (用户自行下载)
+*.gguf
+models/
+
+# 数据
+data/
+*.db
+*.index
+
+# 日志
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# 环境变量
+.env
+.env.local
+.claude/

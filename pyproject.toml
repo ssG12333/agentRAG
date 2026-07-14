@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentrag"
+version = "0.1.0"
+description = "本地轻量 RAG Agent —— 从零搭建，理解全链路"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [{name = "ssG12333"}]
+keywords = ["rag", "llm", "agent", "local", "quantization", "vector-search"]
+
+dependencies = [
+    "numpy>=1.24",
+    "pyyaml>=6.0",
+    "click>=8.0",
+    "rich>=11.0",
+    "jieba>=0.42",
+]
+
+[project.optional-dependencies]
+embedding = ["sentence-transformers>=2.0", "onnxruntime>=1.15"]
+llm = ["llama-cpp-python>=0.3"]
+api = ["fastapi>=0.100", "uvicorn>=0.20"]
+test = ["pytest>=7.0", "pytest-cov>=4.0"]
+dev = [
+    "agentrag[embedding,llm,api,test]",
+    "pybind11>=2.10",
+]
+
+[project.scripts]
+agentrag = "src.cli.main:main"
+
+[tool.setuptools]
+packages = ["src", "src.document", "src.embedding", "src.index", "src.retrieval", "src.generation", "src.agent", "src.cli", "src.utils"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

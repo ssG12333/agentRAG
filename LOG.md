@@ -1,0 +1,132 @@
+# agentRAG 项目进展日志
+
+## 2026-07-14 21:00 | 项目启动与方向决策
+
+### 当前目标
+- 确定 AI Agent + RAG 项目的技术方向和定位
+
+### 完成内容
+- 审查工作区已有项目：AI INFRA（推理系统）、深度量化（GPTQ/AWQ）、NCNN、量化
+- 确定方向：本地轻量 RAG Agent + 从零搭建理解全链路
+- 确定定位：学习简历项目 + 长期迭代开源
+- 确定语言：Python（应用编排）+ C++（热路径加速）
+- 决策：不依赖 LangChain/LlamaIndex/FAISS 等高层框架
+
+### 关键结论
+- 核心约束：本地运行、无云API依赖、量化优先、模块可替换
+- 6 层架构：文档 → 嵌入 → 索引 → 检索 → 生成(+KV Cache) → Agent
+- 5 个 Phase 分阶段实施
+
+### 下一步
+- Phase 0: 项目脚手架
+
+---
+
+## 2026-07-14 21:30 | 计划细化与环境搭建
+
+### 当前目标
+- 细化 PLAN.md 到文件级别，搭建 conda 环境
+
+### 完成内容
+- PLAN.md 写入 `agentRAG项目/`（非 `.claude/plans/`），细分 53 步
+- KV Cache 内容融入各 Phase：监控(Phase 1) / Prefix Caching(Phase 3) / INT8量化(Phase 4)
+- 链路合理性审查：
+  - 修正混合检索融合公式（线性加权 → RRF）
+  - 修正分词方案（C++从零 → cppjieba）
+  - 调整 Phase 顺序（量化前置）
+  - 添加持久化和评估体系
+- GPU 方案确定：RTX 2060 6GB → Qwen2.5-3B 全GPU + BGE-base-zh
+- 创建 conda 环境 `agentrag` (Python 3.10)
+- 清理旧 conda 环境 5 个
+- llama-cpp-python CPU 版已安装（GPU 版需升级 CUDA 11.8→13.x）
+
+### 关键决策
+- CUDA 11.8 不兼容 VS 2026，暂用 CPU 版 llama.cpp，Phase 4 再切 GPU
+- 暂时放弃 KV Cache INT8 自研（llama.cpp API 不暴露 KV Cache 数值）
+
+### 下一步
+- Phase 0
+
+---
+
+## 2026-07-14 22:00 | Phase 0: 项目脚手架
+
+### 当前目标
+- 创建目录结构、构建系统、CLI 入口
+
+### 完成内容
+- 目录结构：src/{document,embedding,index,retrieval,generation,agent,cli,core,api,utils}
+- `pyproject.toml`：包名 agentrag，入口点 agentrag → src.cli.main
+- `CMakeLists.txt`：C++ 构建入口（pybind11 via FetchContent）
+- `src/core/`：C++ 骨架（hello.cpp + pybind/module.cpp + vector_types.h）
+- `src/cli/main.py`：index / ask / chat / serve 四个子命令
+- `src/document/__init__.py`：Document + Chunk 数据模型
+- `README.md`：项目介绍 + 开发状态
+- `configs/default.yaml`：全参数配置
+- `.gitignore` / `LICENSE`
+
+### 验证结果
+- `pip install -e .` 成功
+- `agentrag --help` 输出帮助信息
+- `agentrag --version` → agentrag, version 0.1.0
+
+### 下一步
+- Phase 1
+
+---
+
+## 2026-07-14 22:30 | Phase 1: MVP 基础 RAG 管道
+
+### 当前目标
+- 端到端跑通：文档解析 → 分块 → 嵌入 → 检索 → 提示 → 生成
+
+### 完成内容
+- `document/parser.py`：MarkdownParser + TextParser + get_parser 工厂
+- `document/chunker.py`：RecursiveChunker（递归字符分割）+ FixedWindowChunker（滑动窗口）
+- `embedding/model.py`：SentenceTransformerEmbedding + CachedEmbedding(LRU)
+- `index/vector_store.py`：NumpyVectorStore（余弦相似度 + np.savez 持久化）
+- `retrieval/retriever.py`：Retriever（embed → search → return）
+- `generation/prompt.py`：RAGPromptBuilder（系统提示 + 文档段落 + 历史 + 问题）
+- `generation/engine.py`：LlamaCppEngine + MockLLM
+- `generation/kv_cache.py`：KVCacheMonitor（使用率追踪 + 容量预警）
+- `cli/main.py`：index/ask 命令接入真实逻辑（延迟导入 + 进度条 + 流式输出）
+- `tests/test_phase1.py`：11 个测试（解析器/分块器/向量存储/检索器/提示/引擎）
+- `examples/01_basic_rag.py`：端到端示例
+
+### 验证结果
+- 执行命令：`pytest tests/test_phase1.py -v`
+- 结果：**11 passed in 1.11s**
+- 端到端示例：BGE-small-zh 成功加载，3 chunks 索引完成
+- 检索验证：复杂度分析段落排第一 (score=0.562) ✓
+- SSL 证书问题已修复（certifi cacert.pem）
+
+### 关键结论
+- BGE-small-zh-v1.5 可正常下载和使用（512 维）
+- NumpyVectorStore 全量遍历在小规模（<10K chunks）下够用
+- MockLLM 可支撑无模型时的测试，真实模型需后续接入
+
+### 问题与风险
+- 终端 GBK 编码导致 emoji 和中文显示乱码（不影响功能）
+- llama.cpp 目前是 CPU 版，GPU 版需升级 CUDA Toolkit
+- 尚未下载真实 GGUF 模型文件
+
+### 下一步
+- Phase 2: 混合检索 + C++ 加速（IVF-PQ + BM25）
+
+### 文件清单
+- `src/document/__init__.py`：Document / Chunk 数据模型
+- `src/document/parser.py`：Markdown / Text 解析器
+- `src/document/chunker.py`：递归 / 固定窗口分块器
+- `src/embedding/model.py`：SentenceTransformer + 缓存
+- `src/index/vector_store.py`：Numpy 向量存储 + 持久化
+- `src/retrieval/retriever.py`：检索器
+- `src/generation/prompt.py`：RAG 提示构建
+- `src/generation/engine.py`：llama.cpp / Mock 引擎
+- `src/generation/kv_cache.py`：KV Cache 监控
+- `src/cli/main.py`：CLI 入口
+- `tests/test_phase1.py`：11 个单元测试
+- `examples/01_basic_rag.py`：端到端示例
+- `test_data/transformer_intro.md`：测试文档
+
+### Git
+- 尚未创建提交
