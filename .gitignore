@@ -51,3 +51,7 @@ Thumbs.db
 .env
 .env.local
 .claude/
+
+# 参考源码（不纳入项目仓库）
+llama.cpp/
+llama.cpp-master/
