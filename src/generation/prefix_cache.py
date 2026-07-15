@@ -12,19 +12,10 @@ RAG 场景特别适合 Prefix Caching：
   2. 同一知识库的多次检索结果可能高度重叠
   3. 多步 Agent 推理中，工具描述始终不变
 
-实现（基于 llama.cpp 的 KV Cache 序列复制 API）：
-  - 首次推理时，缓存"系统提示 + 检索结果"的 KV Cache
-  - 后续推理时，如果前缀命中，跳过 prefill 直接 decode
-  - 使用 llama_kv_cache_seq_cp 复制/恢复 KV Cache 状态
-
-收益：
-  - 多轮对话首 token 延迟降低 50-70%（前缀命中时）
-  - 越长的系统提示 + 检索上下文，收益越大
-
-限制（Phase 3）：
-  - 需要 llama-cpp-python 暴露 llama_kv_cache_seq_cp API
-  - Phase 3 先实现纯 Python 的缓存管理逻辑
-  - 实际 KV Cache 操作依赖 llama.cpp C API（可能需要 fork）
+Phase 3 实现边界：
+  - 只实现前缀哈希、LRU 和逻辑命中统计
+  - 每次命中仍把完整 prompt 交给 LLM，不会跳过真实 prefill
+  - 实际 KV Cache 复用需要 llama.cpp C API，留作研究性实验
 """
 
 from __future__ import annotations
@@ -48,6 +39,8 @@ class PrefixCache:
         Args:
             max_entries: 最大缓存条目数（LRU 淘汰）
         """
+        if max_entries <= 0:
+            raise ValueError("max_entries must be greater than zero")
         self._max_entries = max_entries
         self._cache: OrderedDict[str, Any] = OrderedDict()  # key → cache_data
         self._hits = 0
@@ -86,7 +79,7 @@ class PrefixCache:
         else:
             if len(self._cache) >= self._max_entries:
                 self._cache.popitem(last=False)  # LRU 淘汰最旧的
-            self._cache[key] = cache_data
+        self._cache[key] = cache_data
 
     def evict(self, key: str) -> None:
         """手动驱逐指定条目"""
@@ -112,6 +105,7 @@ class PrefixCache:
             "hits": self._hits,
             "misses": self._misses,
             "hit_rate": self.hit_rate,
+            "mode": "logical",
         }
 
 
@@ -127,6 +121,24 @@ class PrefixAwareEngine:
     def __init__(self, llm, prefix_cache: PrefixCache | None = None):
         self._llm = llm
         self._cache = prefix_cache or PrefixCache()
+
+    def _touch_prefix(self, prefix: str) -> None:
+        key = PrefixCache.cache_key(prefix)
+        cached = self._cache.get(key)
+        if cached is None:
+            self._cache.store(key, {"prefix_len": len(prefix)})
+
+    def generate_prompt_with_cache(
+        self,
+        prefix: str,
+        suffix: str,
+        *,
+        separator: str = "",
+        **kwargs,
+    ) -> str:
+        """记录逻辑前缀命中，并始终调用底层 LLM 生成完整 prompt。"""
+        self._touch_prefix(prefix)
+        return self._llm.generate(prefix + separator + suffix, **kwargs)
 
     def generate_with_cache(
         self,
@@ -148,20 +160,8 @@ class PrefixAwareEngine:
         # 构建前缀
         prefix = system_prompt + "\n\n" + context
 
-        # 检查缓存
-        key = PrefixCache.cache_key(prefix)
-        if self._cache.has(key):
-            # 命中 → 理想情况跳过 prefill
-            # Phase 3: 标记命中，实际 prefill 跳过需 llama.cpp API
-            self._cache.get(key)
-        else:
-            # 未命中 → 缓存此前缀
-            # 实际 KV Cache 序列引用在 Phase 3+ 中为 llama.cpp 的 seq_id
-            self._cache.store(key, {"prefix_len": len(prefix)})
-
-        # 构建完整 prompt
-        full_prompt = prefix + "\n\n" + query
-        return self._llm.generate(full_prompt, **kwargs)
+        return self.generate_prompt_with_cache(
+            prefix, query, separator="\n\n", **kwargs)
 
     def generate_stream_with_cache(
         self,
@@ -172,11 +172,7 @@ class PrefixAwareEngine:
     ):
         """流式版本"""
         prefix = system_prompt + "\n\n" + context
-        key = PrefixCache.cache_key(prefix)
-        if self._cache.has(key):
-            self._cache.get(key)
-        else:
-            self._cache.store(key, {"prefix_len": len(prefix)})
+        self._touch_prefix(prefix)
 
         full_prompt = prefix + "\n\n" + query
         for token in self._llm.generate_stream(full_prompt, **kwargs):

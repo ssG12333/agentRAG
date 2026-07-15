@@ -1,6 +1,6 @@
 # agentRAG TODO
 
-> 当前状态：Phase 2/3 收尾中；完整回归 29/29，通过主链路集成和基线验收后再进入 Phase 4
+> 当前状态：P1 主链路集成完成；完整回归 46/46，进入 P2 评估基线建设
 
 ---
 
@@ -30,7 +30,7 @@
 - [x] 1.11 端到端示例
 - [x] 1.12 单元测试 (11/11)
 
-## Phase 2: 混合检索 + C++ 加速 🔄
+## Phase 2: 混合检索 + C++ 加速 ✅
 
 - [x] 2.1 C++ 向量数据结构 (vector_types.h)
 - [x] 2.2 C++ K-Means 聚类
@@ -46,9 +46,9 @@
 - [x] 2.11 混合检索融合 (RRF)
 - [x] 2.12 Cross-encoder 重排序组件
 - [x] 2.13 可配置 dense/IVF-PQ + BM25/RRF + reranker 接入 index/ask/chat 主链路
-- [x] 2.14 Python/C++ 集成回归（完整测试 29/29）
+- [x] 2.14 Python/C++ 集成回归（完整测试 46/46）
 - [x] 2.15a IVF-PQ C++/Python 正确性与持久化测试
-- [ ] 2.15b numpy/C++ 性能、召回率与内存基准
+- [x] 2.15b numpy/C++ 合成性能、召回率与内存基准
 
 ## Phase 3: Agent + Prefix Caching 🔄
 
@@ -56,12 +56,13 @@
 - [x] 3.2 内置工具 (search_knowledge_base / list_documents)
 - [x] 3.3 对话记忆 (Conversation / Working)
 - [x] 3.4a Prefix Cache 管理器 (LRU + hit rate)
-- [ ] 3.4b PrefixAwareEngine 接入 Agent；`/cache` 产生真实命中统计
+- [x] 3.4b PrefixAwareEngine 接入 Agent；`/cache` 输出逻辑命中统计
+- [ ] 3.4c 真实 KV Cache prefill 复用（研究性，不属于 P1）
 - [x] 3.5 ReAct 循环 (Thought→Action→Observation)
 - [x] 3.6 查询改写 (指代消解, LLM fallback)
 - [x] 3.7 Agent CLI (chat 交互式 / /clear / /docs)
-- [x] 3.8 Phase 3 组件测试 (13/13)
-- [ ] 3.9 Agent 集成测试（工具调用 → Observation → Final Answer）
+- [x] 3.8 Phase 3 组件测试 (15/15)
+- [x] 3.9 Agent 集成测试（工具调用 → Observation → Final Answer）
 - [ ] 3.10 真实 GGUF 最小对话验证（无模型时保留 Mock 回归）
 
 ## 近期执行计划：Phase 2/3 收尾与基线建设
@@ -78,9 +79,9 @@
 
 - [x] 明确 Phase 2 范围：实现真正的残差 IVF-PQ
 - [x] 将 HybridRetriever 和 reranker 接入 CLI 检索流程
-- [ ] 将 PrefixAwareEngine 接入 ReActAgent，或明确降级为缓存管理实验
-- [ ] 增加检索、Agent 和 CLI 端到端测试
-- [ ] 完成 C++ 正确性测试和性能基准
+- [x] 将 PrefixAwareEngine 作为逻辑缓存管理实验接入 ReActAgent
+- [x] 增加检索、Agent 和 CLI 端到端测试
+- [x] 完成 C++ 正确性测试和合成性能基准
 
 ### P2：建立 Phase 4 基线
 
@@ -93,7 +94,7 @@
 ### Phase 4 启动门槛
 
 - [x] P0 全部完成，完整回归全绿
-- [ ] P1 的范围决策和关键主链路集成完成
+- [x] P1 的范围决策和关键主链路集成完成
 - [ ] P2 基线可以重复运行并输出原始数据
 
 ## Phase 4: 量化优化

@@ -87,16 +87,25 @@ agentrag ask "your question" --hybrid --reranker-model BAAI/bge-reranker-base
 
 - [x] **Phase 0** — Scaffold + CLI
 - [x] **Phase 1** — MVP RAG (parse → embed → retrieve → generate)
-- [ ] **Phase 2** — Residual IVF-PQ/BM25 core complete; RRF/reranker main-path integration in progress
-- [ ] **Phase 3** — Agent core complete; Prefix Cache and end-to-end integration in progress
+- [x] **Phase 2** — Residual IVF-PQ + BM25/RRF + optional reranker
+- [ ] **Phase 3** — Mock end-to-end Agent and logical Prefix Cache complete; real GGUF/KV reuse pending
 - [ ] **Phase 4** — Quantization (INT8 embed, Q4 weight, KV Cache INT8)
 - [ ] **Phase 5** — Production (FastAPI, Docker, docs)
 
 ### Tests
 
 ```bash
-pytest tests/ -v   # 42/42 passed
+pytest tests/ -v   # 46/46 passed
 ```
+
+P1 synthetic retrieval snapshot (5,000 random vectors, not a real RAG quality baseline):
+
+| Backend | Avg query | Recall@10 | Index data |
+|---------|-----------|-----------|------------|
+| NumPy exact | 0.0725 ms | 1.00 | 1,280,000 B |
+| IVF-PQ | 0.0518 ms | 0.23 | 80,480 B |
+
+The low IVF-PQ recall means it remains opt-in until P2 evaluation and tuning. [Raw CSV](docs/benchmarks/retrieval_p1.csv).
 
 ### License
 

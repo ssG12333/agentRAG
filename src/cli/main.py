@@ -322,8 +322,12 @@ def chat(
             console.print("[dim]记忆已清空[/dim]")
             continue
         elif user_input.lower() == "/cache":
-            stats = agent._prefix_cache.stats
-            console.print(f"  Prefix Cache: {stats['entries']}/{stats['max_entries']} 条, 命中率: {stats['hit_rate']:.0%}")
+            stats = agent.cache_stats
+            console.print(
+                f"  Prefix Cache ({stats['mode']}): "
+                f"{stats['entries']}/{stats['max_entries']} 条, "
+                f"命中率: {stats['hit_rate']:.0%}"
+            )
             continue
         elif user_input.lower() == "/docs":
             console.print(_list_docs(store))

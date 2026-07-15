@@ -213,3 +213,47 @@ def test_index_cli_builds_static_backend_once(monkeypatch, tmp_path):
     assert selected["kwargs"]["n_subvectors"] == 2
     assert fake_store.add_calls == 1
     assert fake_store.saved_path == str(output_path)
+
+
+def test_ask_cli_runs_index_to_generation_path(monkeypatch, tmp_path):
+    import src.cli.main as cli
+
+    index_path = tmp_path / "ask.npz"
+    store = NumpyVectorStore()
+    store.add(
+        np.asarray([[1.0, 0.0, 0.0]], dtype=np.float32),
+        [Chunk(
+            id="answer-1",
+            document_id="doc-1",
+            content="知识库中的答案是42",
+            metadata={"file_name": "answer.md"},
+        )],
+    )
+    store.save(str(index_path))
+
+    class FakeLLM:
+        def generate_stream(self, prompt, **kwargs):
+            assert "知识库中的答案是42" in prompt
+            yield "生成回答42"
+
+    monkeypatch.setattr(
+        cli,
+        "_get_embedding",
+        lambda *args, **kwargs: MockEmbedding(),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_get_llm",
+        lambda *args, **kwargs: FakeLLM(),
+    )
+
+    result = CliRunner().invoke(cli.main, [
+        "ask",
+        "答案是多少",
+        "--index-path", str(index_path),
+        "--show-sources",
+    ])
+
+    assert result.exit_code == 0, result.output
+    assert "生成回答42" in result.output
+    assert "answer.md" in result.output

@@ -29,7 +29,7 @@ Prompt 格式（ReAct 经典）：
 
 import json
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 from src.agent.tools import ToolRegistry
 from src.agent.memory import ConversationMemory
@@ -52,13 +52,15 @@ class ReActAgent:
         memory: ConversationMemory | None = None,
         max_steps: int = 5,
         verbose: bool = False,         # 是否打印思考过程
+        prefix_cache: PrefixCache | None = None,
     ):
         self._llm = llm
         self._tools = tool_registry
         self._memory = memory or ConversationMemory()
         self._max_steps = max_steps
         self._verbose = verbose
-        self._prefix_cache = PrefixCache()
+        self._prefix_cache = prefix_cache or PrefixCache()
+        self._prefix_engine = PrefixAwareEngine(llm, self._prefix_cache)
 
     def run(self, user_query: str) -> str:
         """执行一次 ReAct 循环
@@ -69,14 +71,13 @@ class ReActAgent:
         Returns:
             Agent 最终回答
         """
-        # 记录用户输入
-        self._memory.add_user(user_query)
-
         # 构建系统 Prompt（含工具描述 + 格式说明）
         system_prompt = self._build_system_prompt()
 
-        # 对话历史作为上下文
+        # 先读取历史，再记录当前问题，避免当前问题在 Prompt 中重复出现。
         history_text = self._memory.get_history_text(n_last=6)
+        self._memory.add_user(user_query)
+        stable_prefix = self._build_stable_prefix(system_prompt, history_text)
 
         # ReAct 循环
         step = 0
@@ -86,15 +87,14 @@ class ReActAgent:
             step += 1
 
             # 构建本轮 Prompt
-            prompt = self._build_step_prompt(
-                system_prompt, history_text, user_query, observations
-            )
+            suffix = self._build_step_suffix(user_query, observations)
 
             if self._verbose:
                 print(f"\n{'='*40}\nStep {step}\n{'='*40}")
 
             # 调用 LLM
-            raw_output = self._llm.generate(prompt)
+            raw_output = self._prefix_engine.generate_prompt_with_cache(
+                stable_prefix, suffix, separator="\n\n")
 
             if self._verbose:
                 print(f"LLM output:\n{raw_output[:200]}...")
@@ -134,12 +134,12 @@ class ReActAgent:
                 print("(未解析到 Action 或 Final Answer，继续)")
 
         # 超过最大步数，强制要求回答
-        force_prompt = (
-            system_prompt + "\n\n"
-            + history_text + "\n\n"
-            + "你已经尝试了多步，请基于已有信息给出最终回答。"
+        force_suffix = (
+            self._build_step_suffix(user_query, observations)
+            + "\n\n你已经尝试了多步，请基于已有信息给出最终回答。"
         )
-        final = self._llm.generate(force_prompt)
+        final = self._prefix_engine.generate_prompt_with_cache(
+            stable_prefix, force_suffix, separator="\n\n")
         self._memory.add_assistant(final)
         return final
 
@@ -180,12 +180,26 @@ class ReActAgent:
         observations: List[str],
     ) -> str:
         """构建单步 Prompt"""
-        parts = [system_prompt, ""]
+        prefix = self._build_stable_prefix(system_prompt, history)
+        suffix = self._build_step_suffix(query, observations)
+        return prefix + "\n\n" + suffix
+
+    def _build_stable_prefix(self, system_prompt: str, history: str) -> str:
+        """构建单轮 ReAct 循环内保持不变的前缀。"""
+        parts = [system_prompt]
 
         if history:
             parts.append(f"## 对话历史\n{history}\n")
 
-        parts.append(f"## 用户问题\n{query}\n")
+        return "\n\n".join(parts)
+
+    def _build_step_suffix(
+        self,
+        query: str,
+        observations: List[str],
+    ) -> str:
+        """构建随 ReAct 步骤变化的问题和 Observation 后缀。"""
+        parts = [f"## 用户问题\n{query}\n"]
 
         if observations:
             parts.append("## 已执行的操作\n" + "\n\n".join(observations) + "\n")
@@ -256,3 +270,8 @@ class ReActAgent:
     @property
     def tools(self) -> ToolRegistry:
         return self._tools
+
+    @property
+    def cache_stats(self) -> Dict[str, Any]:
+        """逻辑 Prefix Cache 统计；当前不代表真实 KV Cache 复用。"""
+        return self._prefix_engine.cache_stats

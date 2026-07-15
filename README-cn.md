@@ -87,16 +87,25 @@ agentrag ask "你的问题" --hybrid --reranker-model BAAI/bge-reranker-base
 
 - [x] **Phase 0** — 项目脚手架 + CLI
 - [x] **Phase 1** — MVP RAG 管道（解析→嵌入→检索→生成）
-- [ ] **Phase 2** — 残差 IVF-PQ/BM25 核心完成；RRF/重排序主链路集成中
-- [ ] **Phase 3** — Agent 核心完成；Prefix Cache 与端到端集成收尾中
+- [x] **Phase 2** — 残差 IVF-PQ + BM25/RRF + 可选重排序
+- [ ] **Phase 3** — Mock Agent 端到端与逻辑 Prefix Cache 完成；真实 GGUF/KV 复用待验证
 - [ ] **Phase 4** — 量化（嵌入 INT8、权重 Q4、KV Cache INT8）
 - [ ] **Phase 5** — 生产化（FastAPI、Docker、文档）
 
 ### 测试
 
 ```bash
-pytest tests/ -v   # 42/42 passed
+pytest tests/ -v   # 46/46 passed
 ```
+
+P1 合成检索快照（5,000 个随机向量，不代表真实 RAG 质量基线）：
+
+| 后端 | 平均查询 | Recall@10 | 索引数据 |
+|------|----------|-----------|----------|
+| NumPy 精确检索 | 0.0725 ms | 1.00 | 1,280,000 B |
+| IVF-PQ | 0.0518 ms | 0.23 | 80,480 B |
+
+IVF-PQ 召回率仍然较低，因此在 P2 评估和调参完成前保持显式启用。[原始 CSV](docs/benchmarks/retrieval_p1.csv)。
 
 ### 许可证
 

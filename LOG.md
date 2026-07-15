@@ -475,3 +475,65 @@
 ### Git
 - 提交：`3c1f60a`
 - 信息：`feat: 接入可配置混合检索主链路`
+
+---
+
+## 2026-07-15 20:54 | P1.3：Agent 集成、逻辑 Prefix Cache 与检索基准
+
+### 当前目标
+- 完成 P1 剩余的 Agent 主链路、端到端测试和 numpy/IVF-PQ 可复现合成基准
+
+### 完成内容
+- 将 `PrefixAwareEngine` 接入 ReActAgent，每轮稳定前缀由系统提示、工具描述和历史组成
+- 修正 PrefixCache 新前缀未计入 miss、重复 store 不更新数据的问题
+- `/cache` 改为通过公开属性输出，并明确标识 `logical` 模式
+- 修复当前用户问题先写入历史导致同一 Prompt 重复出现两次的问题
+- 强制最终回答 Prompt 现在保留已执行工具的 Observation
+- 增加工具调用 → Observation → Final Answer 的 Agent 端到端测试
+- 增加 ask CLI 从索引加载、检索、Prompt 构建、生成到来源输出的端到端测试
+- 新增 `scripts/benchmark_retrieval.py`，固定种子并输出构建时间、查询延迟、QPS、Recall@k 和索引数据内存
+- 保存 P1 合成基准原始数据到 `docs/benchmarks/retrieval_p1.csv`
+
+### 实现边界
+- 当前 Prefix Cache 只记录前缀哈希、LRU、hit/miss，不会跳过 llama.cpp prefill
+- 因底层 API 未接入，不报告首 token 延迟收益，也不把逻辑命中率当作性能提升
+- P1 基准使用随机归一化向量，只验证索引实现和趋势，不替代 P2 的真实检索评估集
+
+### 修改文件
+- `src/agent/loop.py`：PrefixAwareEngine 接入与 Prompt 前后缀拆分
+- `src/generation/prefix_cache.py`：修正统计语义并标记 logical 模式
+- `src/cli/main.py`：通过公开接口展示缓存统计
+- `tests/test_phase3.py`：Agent 和缓存集成测试
+- `tests/test_retrieval_pipeline.py`：ask CLI 端到端测试
+- `scripts/benchmark_retrieval.py`：可复现检索基准
+- `tests/test_benchmark_retrieval.py`：基准 smoke/CSV 测试
+- `docs/benchmarks/retrieval_p1.csv`：原始结果
+- `README.md` / `README-cn.md` / `TODO.md`：P1 完成状态与结果同步
+
+### 验证结果
+- Agent/CLI/基准定向测试：`25 passed in 1.32s`
+- 完整测试：`46 passed in 1.21s`
+- 基准参数：seed=42，5000 vectors，dim=64，100 queries，top_k=10，64 clusters，n_probe=8，8 subvectors，4 bits，8 iterations
+- NumPy：build 0.8793 ms，平均查询 0.072549 ms，Recall@10=1.0，索引数据 1,280,000 bytes
+- IVF-PQ：build 170.029 ms，平均查询 0.051841 ms，Recall@10=0.23，索引数据 80,480 bytes
+- 当前快照：IVF-PQ 查询延迟约低 28.5%，索引数据约少 93.7%，但 Recall@10 仅 0.23
+
+### 关键结论
+- P1 范围内的主链路、Mock 端到端验证和合成基准已经完成
+- 当前 IVF-PQ 参数在合成数据上的低召回构成明确反例，不能设为默认后端
+- 默认继续保持 numpy + dense-only；IVF-PQ/hybrid/reranker 均需显式启用
+- P2 必须优先建立真实查询—相关 chunk 数据集，并针对 n_probe、n_bits、聚类数做单变量实验
+
+### 问题与风险
+- 未执行真实 GGUF Agent 对话，当前端到端验证使用确定性 Mock LLM
+- 未执行真实 Cross-Encoder reranker 推理，避免未经授权下载模型
+- 合成基准的绝对时间受当前机器、BLAS 和数据规模影响，不可外推为生产性能
+- 真实 KV Cache 复用仍受 llama.cpp Python/C API 能力限制
+
+### 下一步
+1. 进入 P2，建立固定查询—相关 chunk 评估集和 Recall@k/MRR/nDCG 计算脚本
+2. 固定数据与预算后，对 IVF-PQ 参数进行单变量实验
+3. 建立 FP32 嵌入的精度、延迟、内存基线，为 Phase 4 量化做对照
+
+### Git
+- 提交：待创建

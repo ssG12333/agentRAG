@@ -112,6 +112,20 @@ def test_prefix_cache_eviction():
     assert cache.stats["entries"] <= 2  # LRU 淘汰
 
 
+def test_prefix_aware_engine_tracks_miss_then_hit():
+    from src.generation.prefix_cache import PrefixAwareEngine
+
+    llm = MockLLMForAgent("ok")
+    engine = PrefixAwareEngine(llm)
+    engine.generate_prompt_with_cache("stable", "step-1")
+    engine.generate_prompt_with_cache("stable", "step-2")
+
+    assert engine.cache_stats["mode"] == "logical"
+    assert engine.cache_stats["misses"] == 1
+    assert engine.cache_stats["hits"] == 1
+    assert llm.prompts == ["stablestep-1", "stablestep-2"]
+
+
 # ════════════ ReAct 解析 ════════════
 
 def test_react_parse_final_answer():
@@ -159,6 +173,38 @@ def test_react_max_steps():
     assert isinstance(answer, str)
 
 
+def test_react_tool_observation_final_answer_and_cache_hit():
+    from src.agent.tools import Tool, ToolRegistry
+    from src.agent.loop import ReActAgent
+
+    calls = []
+    registry = ToolRegistry()
+    registry.register(Tool(
+        name="lookup",
+        description="lookup value",
+        parameters={"query": {"type": "string"}},
+        func=lambda query: calls.append(query) or "工具结果42",
+    ))
+    llm = SequentialMockLLM([
+        '<tool_call>{"name": "lookup", "arguments": {"query": "答案"}}</tool_call>',
+        "Final Answer: 最终答案是42",
+    ])
+    agent = ReActAgent(llm, registry)
+
+    answer = agent.run("唯一问题XYZ")
+
+    assert answer == "最终答案是42"
+    assert calls == ["答案"]
+    assert "Observation: 工具结果42" in llm.prompts[1]
+    assert llm.prompts[0].count("唯一问题XYZ") == 1
+    assert agent.cache_stats["misses"] == 1
+    assert agent.cache_stats["hits"] == 1
+    assert agent.memory.messages[-1] == {
+        "role": "assistant",
+        "content": "最终答案是42",
+    }
+
+
 # ════════════ 查询改写 ════════════
 
 def test_rewriter_no_llm():
@@ -183,7 +229,19 @@ class MockLLMForAgent:
     """Agent 测试用 Mock LLM"""
     def __init__(self, response="Final Answer: 测试回答"):
         self._response = response
+        self.prompts = []
     def generate(self, prompt, **kwargs):
+        self.prompts.append(prompt)
         return self._response
     def generate_stream(self, prompt, **kwargs):
         yield from self._response
+
+
+class SequentialMockLLM:
+    def __init__(self, responses):
+        self._responses = iter(responses)
+        self.prompts = []
+
+    def generate(self, prompt, **kwargs):
+        self.prompts.append(prompt)
+        return next(self._responses)
