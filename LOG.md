@@ -355,3 +355,66 @@
 ### Git
 - 提交：`d6ba1e8`
 - 信息：`feat: 完成 Phase 3 Agent 核心与 C++ 构建收尾`
+
+---
+
+## 2026-07-15 18:51 | P1.1：实现真正的残差 IVF-PQ
+
+### 当前目标
+- 将独立的 IVF/PQ 教学组件组合为可检索、可持久化、可供 Python 主链路使用的残差 IVF-PQ 索引
+
+### 实验假设
+- X：使用残差 IVF-PQ 替代原始 float32 向量存储
+- Y：粗量化分桶后，只保存残差 PQ 编码并使用 ADC 近似距离
+- Z：在保持簇级近邻正确性的同时降低向量载荷内存，为后续大规模基准提供可用实现
+- 支持条件：固定聚类数据的 top-5 全部来自正确簇，组合索引估算数据内存小于原始 float32 向量
+- 推翻条件：出现跨簇错误、持久化前后结果不一致，或组合索引内存不降反升
+- 当前阶段上限：只验证最小正确性和存储结构，不把小规模结果表述为大规模性能结论
+
+### 完成内容
+- 新增 `IVFPQIndex`：K-Means 粗量化、残差计算、PQ 编码、按簇 ADC 检索
+- 新增 C++ 二进制持久化，包含版本头、中心、PQ 码本、倒排 ID 和扁平编码，并在加载时校验结构一致性
+- 新增 `IVFPQVectorStore`，兼容 `BaseVectorStore` 的 add/search/save/load 接口
+- Python 层不保留原始 float32 向量；当前明确采用一次性构建，增量添加会返回清晰错误
+- 修复 PQ 在训练样本少于 `2^n_bits` 时可能选中未训练零码字的问题
+- 增加 PQ 参数校验、实际码本大小和扁平 ADC 接口
+- 新增 5 个 IVF-PQ 测试，覆盖检索、内存、持久化、错误输入和 uint8 位宽限制
+
+### 修改文件
+- `src/core/include/ivf_pq_index.h`：组合索引接口
+- `src/core/src/ivf_pq_index.cpp`：残差 IVF-PQ 构建、检索和持久化
+- `src/core/include/product_quantizer.h`：实际码本大小和扁平 ADC 接口
+- `src/core/src/product_quantizer.cpp`：PQ 校验与未训练码字修复
+- `src/core/pybind/module.cpp`：导出 `IVFPQIndex`
+- `src/core/CMakeLists.txt`：加入 IVF-PQ 编译单元
+- `src/index/ivfpq_store.py`：Python VectorStore 适配层
+- `tests/test_ivfpq.py`：正确性和持久化测试
+- `README.md` / `README-cn.md` / `TODO.md`：同步范围与测试状态
+
+### 验证结果
+- 构建命令：`scripts/build_cpp.bat`
+- 构建结果：成功；新增 C++ 文件完成编译和链接
+- 定向测试：`5 passed in 0.20s`
+- 完整测试：`34 passed in 0.86s`
+- 微型聚类数据：原始向量 1536 bytes，IVF-PQ 估算数据内存 928 bytes，其中编码 96 bytes，估算节省 39.58%
+- 检索结果：4 个簇的查询各自 top-5 全部来自目标簇
+- 持久化：保存/加载前后的 top-5 chunk ID 顺序一致
+
+### 关键结论
+- 假设在最小正确性数据上得到初步支持，但样本仅 48 条，码本开销占比很高，不能推断真实语料的召回率或吞吐提升
+- 真正的残差 IVF-PQ 已存在，Phase 2 不再需要降级为独立 IVF/PQ 教学原型
+- Python 适配层具备主链路接入条件，但当前 CLI 仍默认使用 NumpyVectorStore
+
+### 问题与风险
+- 当前仅支持一次性构建；增量索引需要保留训练样本、分批编码或设计重建策略
+- 二进制格式为项目私有 v1 格式，尚未验证跨平台字节序和不同编译器兼容性
+- 当前分数是归一化向量的近似平方 L2，经 Python 转为 `1/(1+distance)`；尚未在真实检索评估集上校准
+- 尚未完成 numpy 与 IVF-PQ 的 Recall@k、延迟、构建时间和大规模内存公平基准
+
+### 下一步
+1. 将 IVFPQVectorStore、SparseRetriever、RRF 和 reranker 接入可配置检索管道
+2. 为 ReActAgent 接入逻辑 Prefix Cache 并增加工具调用端到端测试
+3. 建立固定检索评估集，完成 numpy/IVF-PQ 公平基准
+
+### Git
+- 提交：待创建

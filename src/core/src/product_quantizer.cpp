@@ -30,6 +30,15 @@ void ProductQuantizer::train(
     size_t n_bits,
     int32_t n_iters)
 {
+    if (vectors == nullptr || n == 0 || dim == 0) {
+        throw std::invalid_argument("vectors, n and dim must be non-empty");
+    }
+    if (n_subvectors == 0) {
+        throw std::invalid_argument("n_subvectors must be greater than zero");
+    }
+    if (n_bits == 0 || n_bits > 8) {
+        throw std::invalid_argument("n_bits must be in [1, 8] for uint8 codes");
+    }
     if (dim % n_subvectors != 0) {
         throw std::invalid_argument("dim must be divisible by n_subvectors");
     }
@@ -37,6 +46,7 @@ void ProductQuantizer::train(
     dim_ = dim;
     n_subvectors_ = n_subvectors;
     n_bits_ = n_bits;
+    trained_codebook_size_ = std::min<size_t>(1u << n_bits, n);
 
     size_t d_sub = dim / n_subvectors;          // 每段维度
     size_t k = 1u << n_bits;                     // 码本大小 = 2^n_bits
@@ -57,17 +67,22 @@ void ProductQuantizer::train(
         }
 
         // K-Means 训练码本
-        size_t actual_k = std::min(k, n);  // 码本大小不能超过样本数
-        KMeansResult km = kmeans(sub_vectors.data(), n, d_sub, actual_k, n_iters);
+        KMeansResult km = kmeans(
+            sub_vectors.data(), n, d_sub, trained_codebook_size_, n_iters);
 
         // 存入全局码本数组
         float* codebook_ptr = codebooks_.data() + m * codebook_stride;
-        std::memcpy(codebook_ptr, km.centroids.data(), actual_k * d_sub * sizeof(float));
-        // 如果 actual_k < k（样本太少），剩余码字保持 0
+        std::memcpy(
+            codebook_ptr,
+            km.centroids.data(),
+            trained_codebook_size_ * d_sub * sizeof(float));
     }
 }
 
 std::vector<uint8_t> ProductQuantizer::encode(const float* vec) const {
+    if (vec == nullptr || trained_codebook_size_ == 0) {
+        throw std::runtime_error("ProductQuantizer is not trained");
+    }
     std::vector<uint8_t> codes(n_subvectors_);
     size_t d_sub = dim_ / n_subvectors_;
     size_t k = 1u << n_bits_;
@@ -80,7 +95,7 @@ std::vector<uint8_t> ProductQuantizer::encode(const float* vec) const {
         // 在此段码本中找最近码字
         uint8_t best = 0;
         float best_dist = squared_l2(sub_vec, codebook, d_sub);
-        for (size_t c = 1; c < k; ++c) {
+        for (size_t c = 1; c < trained_codebook_size_; ++c) {
             float dist = squared_l2(sub_vec, codebook + c * d_sub, d_sub);
             if (dist < best_dist) {
                 best_dist = dist;
@@ -107,7 +122,32 @@ std::vector<float> ProductQuantizer::compute_distances(
     const float* query,
     const std::vector<std::vector<uint8_t>>& codes_batch) const
 {
-    size_t n = codes_batch.size();
+    for (const auto& codes : codes_batch) {
+        if (codes.size() != n_subvectors_) {
+            throw std::invalid_argument("each code must have n_subvectors entries");
+        }
+    }
+
+    std::vector<uint8_t> codes_flat;
+    codes_flat.reserve(codes_batch.size() * n_subvectors_);
+    for (const auto& codes : codes_batch) {
+        codes_flat.insert(codes_flat.end(), codes.begin(), codes.end());
+    }
+    return compute_distances_flat(query, codes_flat, codes_batch.size());
+}
+
+std::vector<float> ProductQuantizer::compute_distances_flat(
+    const float* query,
+    const std::vector<uint8_t>& codes_flat,
+    size_t n) const
+{
+    if (query == nullptr || trained_codebook_size_ == 0) {
+        throw std::runtime_error("ProductQuantizer is not trained");
+    }
+    if (codes_flat.size() != n * n_subvectors_) {
+        throw std::invalid_argument("codes_flat size does not match n * n_subvectors");
+    }
+
     size_t d_sub = dim_ / n_subvectors_;
     size_t k = 1u << n_bits_;
     size_t codebook_stride = k * d_sub;
@@ -130,7 +170,10 @@ std::vector<float> ProductQuantizer::compute_distances(
     for (size_t i = 0; i < n; ++i) {
         float dist = 0.0f;
         for (size_t m = 0; m < n_subvectors_; ++m) {
-            uint8_t code = codes_batch[i][m];
+            uint8_t code = codes_flat[i * n_subvectors_ + m];
+            if (code >= trained_codebook_size_) {
+                throw std::invalid_argument("PQ code references an untrained codeword");
+            }
             dist += dist_table[m * k + code];
         }
         distances[i] = dist;

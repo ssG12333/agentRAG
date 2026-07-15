@@ -4,6 +4,7 @@ set(CORE_SOURCES
     src/hello.cpp
     src/kmeans.cpp
     src/ivf_index.cpp
+    src/ivf_pq_index.cpp
     src/product_quantizer.cpp
     src/bm25_index.cpp
 )
@@ -13,6 +14,7 @@ set(CORE_HEADERS
     include/vector_types.h
     include/kmeans.h
     include/ivf_index.h
+    include/ivf_pq_index.h
     include/product_quantizer.h
     include/bm25_index.h
 )

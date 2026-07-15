@@ -36,7 +36,7 @@
 - [x] 2.2 C++ K-Means 聚类
 - [x] 2.3 C++ IVF 倒排索引
 - [x] 2.4 C++ PQ 乘积量化
-- [ ] 2.5 IVF-PQ 组合索引与 Python VectorStore（当前 IVF/PQ 仍为独立组件）
+- [x] 2.5 残差 IVF-PQ 组合索引、持久化与 Python VectorStore
 - [x] 2.6 中文分词器（Python jieba 可用）
 - [x] 2.7 BM25 倒排索引 (C++)
 - [x] 2.8 pybind11 绑定源码
@@ -47,7 +47,8 @@
 - [x] 2.12 Cross-encoder 重排序组件
 - [ ] 2.13 HybridRetriever + reranker 接入 index/ask/chat 主链路
 - [x] 2.14 Python/C++ 集成回归（完整测试 29/29）
-- [ ] 2.15 C++ 正确性测试与 numpy/C++ 基准
+- [x] 2.15a IVF-PQ C++/Python 正确性与持久化测试
+- [ ] 2.15b numpy/C++ 性能、召回率与内存基准
 
 ## Phase 3: Agent + Prefix Caching 🔄
 
@@ -75,7 +76,7 @@
 
 ### P1：完成主链路集成
 
-- [ ] 明确 Phase 2 范围：实现真正 IVF-PQ，或将对外描述调整为 IVF/PQ 教学原型
+- [x] 明确 Phase 2 范围：实现真正的残差 IVF-PQ
 - [ ] 将 HybridRetriever 和 reranker 接入 CLI 检索流程
 - [ ] 将 PrefixAwareEngine 接入 ReActAgent，或明确降级为缓存管理实验
 - [ ] 增加检索、Agent 和 CLI 端到端测试

@@ -72,7 +72,7 @@ agentrag ask "What is the complexity of self-attention?" --show-sources
 | `TextLoader` | `document/parser.py` | File I/O, encoding, metadata |
 | `TextSplitter` | `document/chunker.py` | Recursive split, overlap strategy |
 | `OpenAIEmbeddings` | `embedding/model.py` | Model loading, batch inference |
-| `FAISS` | C++ IVF/PQ (`src/core/`) | K-Means, Inverted File, PQ |
+| `FAISS` | C++ residual IVF-PQ (`src/core/`) | K-Means, Inverted File, residual PQ |
 | `RetrievalQA` | `retrieval/` | RRF hybrid, Cross-Encoder rerank |
 | `AgentExecutor` | `agent/loop.py` | ReAct loop, tool dispatch |
 
@@ -80,7 +80,7 @@ agentrag ask "What is the complexity of self-attention?" --show-sources
 
 - [x] **Phase 0** — Scaffold + CLI
 - [x] **Phase 1** — MVP RAG (parse → embed → retrieve → generate)
-- [ ] **Phase 2** — C++ IVF/PQ/BM25 primitives + RRF/reranker (main-path integration in progress)
+- [ ] **Phase 2** — Residual IVF-PQ/BM25 core complete; RRF/reranker main-path integration in progress
 - [ ] **Phase 3** — Agent core complete; Prefix Cache and end-to-end integration in progress
 - [ ] **Phase 4** — Quantization (INT8 embed, Q4 weight, KV Cache INT8)
 - [ ] **Phase 5** — Production (FastAPI, Docker, docs)
@@ -88,7 +88,7 @@ agentrag ask "What is the complexity of self-attention?" --show-sources
 ### Tests
 
 ```bash
-pytest tests/ -v   # 29/29 passed
+pytest tests/ -v   # 34/34 passed
 ```
 
 ### License

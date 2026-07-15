@@ -72,7 +72,7 @@ agentrag ask "Transformer 的计算复杂度是多少？" --show-sources
 | `TextLoader` | `document/parser.py` | 文件 I/O、编码、元数据 |
 | `TextSplitter` | `document/chunker.py` | 递归分割 + 重叠策略 |
 | `OpenAIEmbeddings` | `embedding/model.py` | 模型加载 + 批量嵌入 |
-| `FAISS` | C++ IVF/PQ (`src/core/`) | K-Means + 倒排索引 + 乘积量化 |
+| `FAISS` | C++ 残差 IVF-PQ (`src/core/`) | K-Means + 倒排索引 + 残差乘积量化 |
 | `RetrievalQA` | `retrieval/` | RRF 混合检索 + Cross-Encoder 重排 |
 | `AgentExecutor` | `agent/loop.py` | ReAct 循环 + 工具调度 |
 
@@ -80,7 +80,7 @@ agentrag ask "Transformer 的计算复杂度是多少？" --show-sources
 
 - [x] **Phase 0** — 项目脚手架 + CLI
 - [x] **Phase 1** — MVP RAG 管道（解析→嵌入→检索→生成）
-- [ ] **Phase 2** — C++ IVF/PQ/BM25 组件 + RRF/重排序（主链路集成中）
+- [ ] **Phase 2** — 残差 IVF-PQ/BM25 核心完成；RRF/重排序主链路集成中
 - [ ] **Phase 3** — Agent 核心完成；Prefix Cache 与端到端集成收尾中
 - [ ] **Phase 4** — 量化（嵌入 INT8、权重 Q4、KV Cache INT8）
 - [ ] **Phase 5** — 生产化（FastAPI、Docker、文档）
@@ -88,7 +88,7 @@ agentrag ask "Transformer 的计算复杂度是多少？" --show-sources
 ### 测试
 
 ```bash
-pytest tests/ -v   # 29/29 passed
+pytest tests/ -v   # 34/34 passed
 ```
 
 ### 许可证

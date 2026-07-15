@@ -95,17 +95,31 @@ public:
         const std::vector<std::vector<uint8_t>>& codes_batch
     ) const;
 
+    /**
+     * 对平坦存储的编码执行 ADC 距离计算。
+     * codes_flat 的布局为 (n, n_subvectors)。
+     */
+    std::vector<float> compute_distances_flat(
+        const float* query,
+        const std::vector<uint8_t>& codes_flat,
+        size_t n
+    ) const;
+
     // ── 属性 ──
     size_t dim() const { return dim_; }
     size_t n_subvectors() const { return n_subvectors_; }
     size_t n_bits() const { return n_bits_; }
     size_t codebook_size() const { return 1u << n_bits_; }  // 256 for n_bits=8
+    size_t trained_codebook_size() const { return trained_codebook_size_; }
     size_t d_sub() const { return dim_ / n_subvectors_; }    // 每段维度
 
 private:
+    friend class IVFPQIndex;
+
     size_t dim_ = 0;
     size_t n_subvectors_ = 0;
     size_t n_bits_ = 8;
+    size_t trained_codebook_size_ = 0;
 
     // 码本：n_subvectors * codebook_size * d_sub 平坦存储
     // codebooks_[m * codebook_size * d_sub + c * d_sub + d] = 第 m 段第 c 个码字第 d 维

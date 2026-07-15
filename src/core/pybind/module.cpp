@@ -14,6 +14,7 @@
 
 #include "kmeans.h"
 #include "ivf_index.h"
+#include "ivf_pq_index.h"
 #include "product_quantizer.h"
 #include "bm25_index.h"
 
@@ -100,6 +101,51 @@ PYBIND11_MODULE(agentrag_core, m) {
             "检索 top_k 最近邻")
         .def("__len__", &IVFIndex::size)
         .def_property_readonly("dim", &IVFIndex::dim);
+
+    // ── 残差 IVF-PQ 索引 ──
+    py::class_<IVFPQIndex>(m, "IVFPQIndex")
+        .def(py::init<>())
+        .def("build", [](IVFPQIndex& self,
+                          py::array_t<float, py::array::c_style | py::array::forcecast> vectors,
+                          size_t n_clusters, size_t n_probe,
+                          size_t n_subvectors, size_t n_bits, int32_t n_iters) {
+                py::buffer_info buf = vectors.request();
+                if (buf.ndim != 2) throw std::runtime_error("Expected 2D array");
+                self.build(
+                    static_cast<const float*>(buf.ptr),
+                    static_cast<size_t>(buf.shape[0]),
+                    static_cast<size_t>(buf.shape[1]),
+                    n_clusters, n_probe, n_subvectors, n_bits, n_iters);
+            },
+            py::arg("vectors"),
+            py::arg("n_clusters") = 256,
+            py::arg("n_probe") = 8,
+            py::arg("n_subvectors") = 64,
+            py::arg("n_bits") = 8,
+            py::arg("n_iters") = 25,
+            "构建残差 IVF-PQ 索引")
+        .def("search", [](const IVFPQIndex& self,
+                           py::array_t<float, py::array::c_style | py::array::forcecast> query,
+                           size_t top_k) {
+                py::buffer_info buf = query.request();
+                if (buf.ndim != 1) throw std::runtime_error("Expected 1D query array");
+                if (static_cast<size_t>(buf.shape[0]) != self.dim()) {
+                    throw std::runtime_error("Query dimension does not match index");
+                }
+                return self.search(static_cast<const float*>(buf.ptr), top_k);
+            },
+            py::arg("query"), py::arg("top_k") = 5,
+            "使用 ADC 检索 top_k 近邻")
+        .def("save", &IVFPQIndex::save, py::arg("path"))
+        .def("load", &IVFPQIndex::load, py::arg("path"))
+        .def("__len__", &IVFPQIndex::size)
+        .def_property_readonly("dim", &IVFPQIndex::dim)
+        .def_property_readonly("num_clusters", &IVFPQIndex::num_clusters)
+        .def_property_readonly("n_probe", &IVFPQIndex::n_probe)
+        .def_property_readonly("n_subvectors", &IVFPQIndex::n_subvectors)
+        .def_property_readonly("n_bits", &IVFPQIndex::n_bits)
+        .def_property_readonly("codes_bytes", &IVFPQIndex::codes_bytes)
+        .def_property_readonly("estimated_memory_bytes", &IVFPQIndex::estimated_memory_bytes);
 
     // ── 乘积量化 ──
     py::class_<ProductQuantizer>(m, "ProductQuantizer")
