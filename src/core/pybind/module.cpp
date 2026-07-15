@@ -17,6 +17,13 @@
 #include "product_quantizer.h"
 #include "bm25_index.h"
 
+// hello.cpp 中的测试函数（无头文件，手动声明）
+namespace agentrag {
+namespace core {
+    int32_t add(int32_t a, int32_t b);
+}
+}
+
 namespace py = pybind11;
 using namespace agentrag::core;
 
@@ -34,6 +41,12 @@ static const float* as_float_ptr(const py::array_t<float>& arr) {
 PYBIND11_MODULE(agentrag_core, m) {
     m.doc() = "agentRAG C++ 加速模块 —— K-Means / IVF / PQ / BM25";
 
+    // ── 基础类型 ──
+    py::class_<SearchResult>(m, "SearchResult")
+        .def(py::init<>())
+        .def_readwrite("id", &SearchResult::id)
+        .def_readwrite("score", &SearchResult::score);
+
     // ── 测试函数 ──
     m.def("add", &agentrag::core::add,
           py::arg("a"), py::arg("b"),
@@ -46,14 +59,20 @@ PYBIND11_MODULE(agentrag_core, m) {
         .def_readonly("assignments", &KMeansResult::assignments)
         .def_readonly("n_iters", &KMeansResult::n_iters);
 
-    m.def("kmeans", &kmeans,
-          py::arg("vectors").noconvert(),
-          py::arg("n"),
-          py::arg("dim"),
-          py::arg("k"),
-          py::arg("max_iters") = 25,
-          py::arg("seed") = 42,
-          "K-Means 聚类");
+    m.def("kmeans", [](py::array_t<float> vectors,
+                         size_t k, int32_t max_iters, uint32_t seed) {
+            py::buffer_info buf = vectors.request();
+            if (buf.ndim != 2) throw std::runtime_error("Expected 2D array");
+            return kmeans(
+                static_cast<const float*>(buf.ptr),
+                buf.shape[0], buf.shape[1],
+                k, max_iters, seed);
+        },
+        py::arg("vectors"),
+        py::arg("k"),
+        py::arg("max_iters") = 25,
+        py::arg("seed") = 42,
+        "K-Means 聚类");
 
     // ── IVF 索引 ──
     py::class_<IVFIndex>(m, "IVFIndex")

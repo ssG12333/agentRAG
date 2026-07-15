@@ -33,8 +33,8 @@ dev = [
 [project.scripts]
 agentrag = "src.cli.main:main"
 
-[tool.setuptools]
-packages = ["src", "src.document", "src.embedding", "src.index", "src.retrieval", "src.generation", "src.agent", "src.cli", "src.utils"]
+[tool.setuptools.packages.find]
+include = ["src*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

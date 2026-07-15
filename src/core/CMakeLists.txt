@@ -26,9 +26,16 @@ pybind11_add_module(agentrag_core
 target_include_directories(agentrag_core PRIVATE include)
 target_compile_features(agentrag_core PRIVATE cxx_std_17)
 
-# Windows: 避免 windows.h 的 min/max 宏污染
+# Windows: UTF-8 源文件编码 + 避免 min/max 宏污染
 if(MSVC)
     target_compile_definitions(agentrag_core PRIVATE NOMINMAX)
-    # 优化选项：/O2 最大优化（Release 模式）
-    target_compile_options(agentrag_core PRIVATE $<$<CONFIG:Release>:/O2>)
+    target_compile_options(agentrag_core PRIVATE /utf-8 $<$<CONFIG:Release>:/O2>)
 endif()
+
+# 编译后自动复制 .pyd 到项目根目录（无需手动 copy）
+add_custom_command(TARGET agentrag_core POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:agentrag_core>"
+        "${CMAKE_SOURCE_DIR}/$<TARGET_FILE_NAME:agentrag_core>"
+    COMMENT "Copying agentrag_core.pyd to project root"
+)

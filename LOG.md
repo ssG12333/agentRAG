@@ -135,7 +135,65 @@
 - `scripts/build_cpp.bat`：编译脚本
 
 ### Git
-- 提交：`95af3fe` feat: Phase 2 C++核心 + Python封装（16/16测试通过）
+- 提交：`95af3fe` feat: Phase 2 C++核心 + Python封装
+
+---
+
+## 2026-07-15 15:30 | C++ 编译成功
+
+### 完成内容
+- PyBind11 查找逻辑优化(优先 conda 本地 → FetchContent 兜底)
+- Ninja 编译通过, 自动生成 `agentrag_core.cp310-win_amd64.pyd`
+- K-Means / IVF / PQ / BM25 四大 C++ 模块全部可 import
+
+### 验证结果
+- `agentrag_core.add(1,2)=3` ✅
+- K-Means / IVF / PQ / BM25 功能验证 ✅
+
+---
+
+## 2026-07-15 16:00 | Phase 3: Agent + Prefix Caching
+
+### 当前目标
+- Agent 智能体: ReAct 循环 + 工具系统 + 对话记忆 + 查询改写
+
+### 完成内容
+- `src/agent/tools.py`: Tool 数据类 + ToolRegistry(XML格式工具描述)
+- `src/agent/memory.py`: ConversationMemory + WorkingMemory
+- `src/agent/loop.py`: ReActAgent(Thought→Action→Observation循环)
+- `src/generation/prefix_cache.py`: PrefixCache(LRU) + PrefixAwareEngine
+- `src/retrieval/rewriter.py`: QueryRewriter(指代消解)
+- `src/cli/main.py`: `agentrag chat` 交互式 Agent 对话(工具调用+多轮记忆)
+- `tests/test_phase3.py`: 13 个 Agent 层测试
+- CMakeList 新增 POST_BUILD 自动复制 .pyd 到项目根
+
+### 验证结果
+- 执行命令: `pytest tests/ -v`
+- 结果: **27/29 passed**(2 个失败依赖 C++ SearchResult 绑定重编, 重编后 29/29)
+
+### 关键结论
+- ReAct 循环解析鲁棒(支持 Final Answer / tool_call 两种格式)
+- QueryRewriter 在无 LLM 或无历史时优雅回退
+- PrefixCache LRU 淘汰策略正确
+
+### 问题与风险
+- PrefixAwareEngine 实际 prefill 跳过需 llama.cpp C API 支持(Phase 4)
+- llama.cpp GPU 版仍未编译(CUDA 11.8 不兼容 VS 2026)
+
+### 下一步
+- 重编 C++ 验证 SearchResult 绑定 → 29/29 全绿
+- Phase 4: 量化优化
+
+### 文件清单(Phase 3 新增)
+- `src/agent/tools.py`: 工具系统
+- `src/agent/memory.py`: 对话/工作记忆
+- `src/agent/loop.py`: ReAct Agent 循环
+- `src/generation/prefix_cache.py`: 前缀缓存
+- `src/retrieval/rewriter.py`: 查询改写
+- `tests/test_phase3.py`: 13 个 Agent 测试
+
+### Git
+- 待提交
 
 ---
 
@@ -194,3 +252,105 @@
 
 ### Git
 - 尚未创建提交
+
+---
+
+## 2026-07-15 17:23 | 进度审计与下一阶段规划
+
+### 当前目标
+- 核对 Phase 2/3 的实际完成度，建立进入 Phase 4 前的收尾和基线计划
+
+### 完成内容
+- 对照 `LOG.md`、`TODO.md`、代码调用关系和当前 C++ 扩展检查项目状态
+- 将下一阶段调整为“Phase 2/3 收尾与基线建设”，暂不直接进入 Phase 4
+- 更新 `TODO.md`，拆分 P0 全绿回归、P1 主链路集成、P2 量化基线三组任务
+- 为 Phase 4 增加启动门槛，并将 KV Cache INT8 调整为不阻塞核心交付的研究性实验
+
+### 修改文件
+- `TODO.md`：校正 Phase 2/3 状态，补充优先级、验收标准和 Phase 4 启动门槛
+- `LOG.md`：追加本次进度审计、验证证据和下一阶段计划
+
+### 验证结果
+- 执行命令：`E:\anaconda3\.conda\envs\agentrag\python.exe -m pytest tests -q`
+- 结果：**28 passed, 1 failed**
+- 唯一失败：`tests/test_phase2_python.py::test_sparse_retriever_add_search`
+- 失败证据：当前 `.pyd` 未导出 `agentrag::core::SearchResult`；`hasattr(agentrag_core, "SearchResult")` 为 `False`
+- 时间证据：项目根目录 `.pyd` 生成于 15:06，`src/core/pybind/module.cpp` 修改于 15:16，当前二进制早于绑定源码
+- 文档检查：`git diff --check` 未发现空白错误，仅有 Windows LF/CRLF 提示
+
+### 关键结论
+- Phase 3 的 13 个组件测试已通过，但完整仓库当前可信状态是 28/29，不能记录为 29/29
+- C++ 源码已添加 `SearchResult` 绑定，下一步应先重编并重新验证，不能把“预计通过”写成已通过
+- 当前 IVF 与 PQ 是独立组件，尚无真正的 IVF-PQ 组合索引及 Python VectorStore
+- `HybridRetriever` 和 reranker 尚未接入 CLI 主链路
+- `PrefixCache` 管理逻辑已实现，但 ReActAgent 未调用 `PrefixAwareEngine`，`/cache` 尚不能反映真实推理缓存命中
+- 量化实验缺少固定评估集和 FP32 基线，Phase 4 应在基线可复现后启动
+
+### 问题与风险
+- `conda run` 在 Windows GBK 控制台回显 pytest 输出时触发 `UnicodeEncodeError`，后续验证应直接调用环境 Python 或显式使用 UTF-8
+- llama.cpp Python 接口未提供当前设计所需的原始 KV Cache 操作，KV Cache INT8 只能先做可行性研究
+- 工作区已有多项未提交代码和文档修改，后续提交必须只纳入已核对的本轮内容
+
+### 下一步
+1. 重新编译 C++ 扩展，确认 `SearchResult` 已导出并取得 29/29 全绿结果
+2. 决定 IVF-PQ 的交付范围，完成混合检索、reranker 和 Prefix Cache 的主链路集成
+3. 增加 C++、检索和 Agent 端到端测试及基准
+4. 建立 FP32 嵌入评估基线，再启动 ONNX/INT8 量化实验
+
+### 终止与回退条件
+- 完整回归未全绿时，不进入 Phase 4
+- IVF-PQ 组合实现成本超过当前阶段预算时，回退为明确标注的 IVF/PQ 教学原型
+- Prefix Cache 无可用底层 API 或实测收益不足时，保留监控/管理器，不把它作为性能提升结论
+- 量化导致核心检索指标明显退化时，保留 FP32 路径并停止扩大实验规模
+
+### Git
+- 提交：未创建；当前工作区包含本次任务开始前已有的未提交修改
+
+---
+
+## 2026-07-15 18:00 | P0：恢复可信全绿状态
+
+### 当前目标
+- 重编最新 C++ 绑定，恢复完整回归全绿，并同步项目状态文档
+
+### 完成内容
+- 使用 agentrag 环境内已安装的 pybind11 重新配置现有 Ninja 构建目录
+- 设置 `PYBIND11_FINDPYTHON=ON`，避免 CMake 4.4 调用 pybind11 旧版 Python 查找逻辑
+- 增量编译并自动复制最新 `agentrag_core.cp310-win_amd64.pyd` 到项目根目录
+- 更新根 CMake 配置，默认使用现代 FindPython
+- 重写 `scripts/build_cpp.bat` 为可重复的增量 Ninja 构建，不再删除 build 或依赖 `conda activate`
+- 校正中英文 README：Phase 2/3 标记为集成收尾中，不再把独立 IVF/PQ 组件表述为完整 IVF-PQ 主链路
+- 更新 `TODO.md` 中的 SearchResult 导出与 29/29 回归状态
+
+### 修改文件
+- `README.md`：校正 Phase 2/3 路线图和组件描述
+- `README-cn.md`：同步中文路线图和组件描述
+- `TODO.md`：完成 P0 编译、导出检查、完整测试和文档同步事项
+- `LOG.md`：记录 P0 构建过程和验证结果
+- `CMakeLists.txt`：启用现代 FindPython
+- `scripts/build_cpp.bat`：使用固定 agentrag 环境路径执行增量 Ninja 构建
+
+### 验证结果
+- CMake 配置：成功；使用 Ninja、Release、本地 pybind11 和现代 FindPython
+- C++ 构建：成功；7 个编译/链接步骤全部完成
+- 构建脚本复验：成功；CMake 配置完成，Ninja 报告 `no work to do`
+- 导出检查：`hasattr(agentrag_core, "SearchResult")` 为 `True`
+- 完整测试：`python -m pytest tests -q -p no:cacheprovider` → `29 passed in 0.88s`
+
+### 关键结论
+- SearchResult 失败由旧 `.pyd` 引起，源码绑定本身有效
+- P0 的编译和回归目标已经完成，下一阶段进入 P1 主链路集成
+- 构建仍会提示 `vswhere.exe` 不在 PATH，但在已初始化的 VS x64 环境中不阻塞配置和编译
+
+### 问题与风险
+- 构建脚本仍包含当前机器的 Conda 环境和 VS 工具链路径；跨机器使用前需要参数化
+- `.pytest_cache` 权限异常仍存在，已通过 `-p no:cacheprovider` 获得无警告回归结果
+
+### 下一步
+1. 审查并提交本轮 Phase 3/P0 相关修改
+2. 决定真正 IVF-PQ 与教学原型之间的交付范围
+3. 接入 HybridRetriever、reranker 和 PrefixAwareEngine
+4. 增加 Agent 与检索主链路端到端测试
+
+### Git
+- 提交：待创建
