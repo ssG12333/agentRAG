@@ -17,12 +17,15 @@ from src.document import Chunk, Document
 from src.document.chunker import FixedWindowChunker, RecursiveChunker
 from src.embedding.model import BaseEmbedding, CachedEmbedding
 from src.generation.engine import MockLLM
+from src.generation.kv_cache import KVCacheMonitor
 from src.generation.prompt import RAGPromptBuilder
 from src.index.vector_store import NumpyVectorStore
 from src.index.sparse_store import SparseRetriever
 from src.retrieval.pipeline import RetrievalPipeline
 from src.retrieval.reranker import BaseReranker
 from src.retrieval.retriever import Retriever
+from src.agent.loop import ReActAgent
+from src.agent.tools import Tool, ToolRegistry
 
 
 class ToyEmbedding(BaseEmbedding):
@@ -186,9 +189,71 @@ def lab_08() -> None:
     print("LAB 08 | warning: KeywordReranker is a test double")
 
 
+def lab_09() -> None:
+    prompt = RAGPromptBuilder().build(
+        "什么是 KV Cache？",
+        ["KV Cache 保存历史 token 的 Key 和 Value。"],
+        ["用户: 我正在学习自回归生成。"],
+    )
+    stream = "".join(MockLLM("[Mock stream]").generate_stream(prompt))
+    monitor = KVCacheMonitor(total_slots=1024, warn_threshold=0.9)
+    monitor.update(used_slots=768)
+    print("LAB 09 | prompt_sections:", all(
+        part in prompt for part in ["参考文档", "对话历史", "用户问题"]
+    ))
+    print("LAB 09 | stream:", stream)
+    print("LAB 09 | usage_pct:", monitor.stats().usage_pct)
+    print("LAB 09 | memory_bytes_unknown:", monitor.stats().memory_bytes)
+
+
+class SequentialLLM:
+    def __init__(self, outputs):
+        self.outputs = list(outputs)
+
+    def generate(self, prompt, **kwargs):
+        return self.outputs.pop(0)
+
+    def generate_stream(self, prompt, **kwargs):
+        yield self.generate(prompt, **kwargs)
+
+
+def lab_10() -> None:
+    calls = []
+    registry = ToolRegistry()
+    registry.register(Tool(
+        name="lookup",
+        description="查询课程事实",
+        parameters={"query": {"type": "string", "description": "查询内容"}},
+        func=lambda query: calls.append(query) or "逻辑缓存不会跳过真实 prefill。",
+    ))
+    llm = SequentialLLM([
+        '<tool_call>{"name":"lookup","arguments":{"query":"Prefix Cache"}}</tool_call>',
+        "Final Answer: 当前只有逻辑命中统计。",
+    ])
+    agent = ReActAgent(llm, registry, max_steps=3)
+    answer = agent.run("当前 Prefix Cache 实现到什么程度？")
+    print("LAB 10 | tool_calls:", calls)
+    print("LAB 10 | answer:", answer)
+    print("LAB 10 | cache_stats:", agent.cache_stats)
+
+
+def lab_11() -> None:
+    from click.testing import CliRunner
+    from src.cli.main import main, _resolve_backend
+
+    result = CliRunner().invoke(main, ["--help"])
+    print("LAB 11 | cli_exit_code:", result.exit_code)
+    print("LAB 11 | commands_present:", all(
+        name in result.output for name in ["index", "ask", "chat", "serve"]
+    ))
+    print("LAB 11 | auto_ivfpq:", _resolve_backend("auto", "data/demo.ivfpq"))
+    print("LAB 11 | auto_numpy:", _resolve_backend("auto", "data/demo.npz"))
+
+
 LABS = {
     "01": lab_01, "02": lab_02, "03": lab_03, "04": lab_04,
     "05": lab_05, "06": lab_06, "07": lab_07, "08": lab_08,
+    "09": lab_09, "10": lab_10, "11": lab_11,
 }
 
 

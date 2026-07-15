@@ -670,5 +670,31 @@
 2. 增加真实 GGUF 前置检查与 Agent 状态机图
 
 ### Git
-- 提交：待创建
+- 提交：`6eb3c30`
 - 信息：`docs: 完成检索算法学习章节与实验`
+
+---
+
+## 2026-07-15 23:36 | 系统学习课程：生成与 Agent 09-11
+
+### 当前目标
+- 完成 Prompt、生成/KV、ReAct Agent 和 CLI 集成课程
+- 用顺序 Mock 验证工具闭环，同时严格隔离真实模型结论
+
+### 完成内容
+- 09 章覆盖 Attention、prefill/decode、流式生成和估算型 KV 监控
+- 10 章覆盖 Tool/Memory/ReAct/QueryRewriter 与逻辑 Prefix Cache 状态机
+- 11 章覆盖 index/ask/chat 后端选择、配置未接线事实和分层调试
+- 扩展 09-11 离线实验；真实 GGUF 继续由独立脚本检查
+
+### 验证计划
+- 运行 09-11，检查 Mock stream、Agent 工具闭环、logical miss/hit 和 CLI 路由
+- 保证 `serve` 只被描述为占位，不误写成已完成 API
+
+### 下一步
+1. 完成评估、量化、真实 KV 和生产化预研章节
+2. 增加文档链接校验、学习实验 smoke test 和课程入口
+
+### Git
+- 提交：待创建
+- 信息：`docs: 完成生成与 Agent 学习章节`
