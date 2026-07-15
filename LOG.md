@@ -696,5 +696,46 @@
 2. 增加文档链接校验、学习实验 smoke test 和课程入口
 
 ### Git
-- 提交：待创建
+- 提交：`c7b0e8b`
 - 信息：`docs: 完成生成与 Agent 学习章节`
+
+---
+
+## 2026-07-16 00:08 | 系统学习课程：评估与预研 12-15
+
+### 当前目标
+- 完成评估方法、量化、真实 Prefix KV 和生产化预研课程
+- 对已实现能力和 Phase 4/5 设想建立明确边界
+
+### 完成内容
+- 12 章讲解 Recall/MRR/nDCG、可证伪实验，并保留 `Recall@10=0.23` 反例
+- 13 章用 NumPy 玩具实验讲解 INT8 量化误差，不声称 ONNX/BGE 已验证
+- 14 章区分逻辑命中统计与真实 KV prefill 复用，并修正 Qwen2.5-3B KV heads 估算
+- 15 章列出 API、配置、日志、容器、CI 和安全的未来验收边界
+- 扩展 12-15 快速离线实验
+
+### 修改文件
+- `docs/learning/12_evaluation.md`：检索评估与实验规范
+- `docs/learning/13_quantization_preresearch.md`：量化预研
+- `docs/learning/14_prefix_kv_preresearch.md`：真实 Prefix KV 预研
+- `docs/learning/15_production_preresearch.md`：生产化预研
+- `examples/learning/run_lab.py`：新增 12-15 实验
+- `src/generation/kv_cache.py`：修正理论 KV payload 示例
+
+### 验证结果
+- `python examples/learning/run_lab.py --lab 12/13/14/15`：通过
+- `python -m py_compile examples/learning/run_lab.py src/generation/kv_cache.py`：通过
+- Lab 14 理论 FP16 KV payload：1024/4096/8192 tokens 分别为 36/144/288 MiB
+- Lab 15 确认 API server、Dockerfile、CI workflow 当前均不存在
+
+### 问题与风险
+- ONNX INT8、真实 KV state 复用、API/Docker/CI 均未实现，课程只提供预研框架
+- 理论 KV payload 不等于 runtime 实测内存
+
+### 下一步
+1. 增加 Markdown 链接校验和学习实验 smoke test
+2. 在中英文 README 接入课程入口并运行完整回归
+
+### Git
+- 提交：待创建
+- 信息：`docs: 完成评估与预研学习章节`

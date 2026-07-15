@@ -36,7 +36,9 @@ class KVCacheStats:
 
     内存估算公式 (FP16):
       KV_Cache_bytes = 2 * n_layers * n_kv_heads * n_ctx * head_dim * 2
-      以 Qwen2.5-3B 为例: 2 * 36 * 16 * 4096 * 128 * 2 = ~900MB
+      以 Qwen2.5-3B 为例（2 个 KV heads）:
+      2 * 36 * 2 * 4096 * 128 * 2 = 144 MiB（理论 payload）
+      实际占用仍受 runtime 布局、对齐和 batch 等因素影响。
     """
     total_slots: int = 0
     used_slots: int = 0

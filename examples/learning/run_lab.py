@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from tempfile import TemporaryDirectory
 from pathlib import Path
@@ -250,10 +251,80 @@ def lab_11() -> None:
     print("LAB 11 | auto_numpy:", _resolve_backend("auto", "data/demo.npz"))
 
 
+def _recall_at_k(ranking: list[str], relevant: set[str], k: int) -> float:
+    return len(set(ranking[:k]) & relevant) / len(relevant) if relevant else 0.0
+
+
+def _reciprocal_rank(ranking: list[str], relevant: set[str]) -> float:
+    for rank, doc_id in enumerate(ranking, start=1):
+        if doc_id in relevant:
+            return 1.0 / rank
+    return 0.0
+
+
+def _ndcg_at_k(grades: list[int], k: int) -> float:
+    def dcg(values: list[int]) -> float:
+        return sum(
+            (2**grade - 1) / math.log2(rank + 1)
+            for rank, grade in enumerate(values, start=1)
+        )
+
+    actual = dcg(grades[:k])
+    ideal = dcg(sorted(grades, reverse=True)[:k])
+    return actual / ideal if ideal else 0.0
+
+
+def lab_12() -> None:
+    ranking = ["d0", "d1", "d4", "d3"]
+    relevant = {"d1", "d3"}
+    grades = [0, 2, 0, 1]
+    print("LAB 12 | recall@3:", _recall_at_k(ranking, relevant, 3))
+    print("LAB 12 | reciprocal_rank:", _reciprocal_rank(ranking, relevant))
+    print("LAB 12 | ndcg@4:", round(_ndcg_at_k(grades, 4), 4))
+
+
+def lab_13() -> None:
+    values = np.asarray([-1.0, -0.2, 0.0, 0.3, 0.9], dtype=np.float32)
+    scale = float(np.max(np.abs(values))) / 127
+    quantized = np.clip(np.round(values / scale), -127, 127).astype(np.int8)
+    restored = quantized.astype(np.float32) * scale
+    mae = float(np.mean(np.abs(values - restored)))
+    cosine = float(values @ restored / (np.linalg.norm(values) * np.linalg.norm(restored)))
+    print("LAB 13 | theoretical_payload_ratio:", values.itemsize / quantized.itemsize)
+    print("LAB 13 | mae:", round(mae, 6))
+    print("LAB 13 | cosine:", round(cosine, 6))
+    print("LAB 13 | warning: this is not an ONNX or BGE benchmark")
+
+
+def lab_14() -> None:
+    def kv_mib(sequence_length: int) -> float:
+        payload = 2 * 36 * 2 * sequence_length * 128 * 2
+        return payload / (1024**2)
+
+    estimates = {
+        length: round(kv_mib(length), 1)
+        for length in (1024, 4096, 8192)
+    }
+    print("LAB 14 | qwen2.5-3b_fp16_kv_mib:", estimates)
+    print("LAB 14 | warning: theoretical payload, not runtime memory")
+    print("LAB 14 | current logical cache does not reuse KV state")
+
+
+def lab_15() -> None:
+    readiness = {
+        "api_server": (PROJECT_ROOT / "src" / "api" / "server.py").exists(),
+        "dockerfile": (PROJECT_ROOT / "Dockerfile").exists(),
+        "ci_workflow": (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").exists(),
+    }
+    print("LAB 15 | production_files:", readiness)
+    print("LAB 15 | note: serve is currently a development placeholder")
+
+
 LABS = {
     "01": lab_01, "02": lab_02, "03": lab_03, "04": lab_04,
     "05": lab_05, "06": lab_06, "07": lab_07, "08": lab_08,
     "09": lab_09, "10": lab_10, "11": lab_11,
+    "12": lab_12, "13": lab_13, "14": lab_14, "15": lab_15,
 }
 
 
