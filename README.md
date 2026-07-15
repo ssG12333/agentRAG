@@ -65,6 +65,10 @@ agentrag ask "Exact model X100" --backend ivfpq --index-path ./data/kb.ivfpq --h
 agentrag ask "your question" --hybrid --reranker-model BAAI/bge-reranker-base
 ```
 
+### Systematic Learning Course
+
+The repository includes a Chinese, code-driven RAG course with 16 chapters, offline labs, exercises, and explicit boundaries between implemented and planned features. Start at [docs/learning/README.md](docs/learning/README.md); the quick path does not download GGUF or Cross-Encoder models.
+
 ### Tech Stack
 
 | Component | Choice | Why |
@@ -99,7 +103,7 @@ agentrag ask "your question" --hybrid --reranker-model BAAI/bge-reranker-base
 ### Tests
 
 ```bash
-pytest tests/ -v   # 46/46 passed
+pytest tests/ -v   # 49/49 passed
 ```
 
 P1 synthetic retrieval snapshot (5,000 random vectors, not a real RAG quality baseline):

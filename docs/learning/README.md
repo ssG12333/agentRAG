@@ -38,6 +38,16 @@
 
 补充阅读：[术语表](glossary.md) · [原始资料](references.md) · [章节模板](_chapter_template.md)
 
+## 快速验收
+
+```powershell
+python scripts/check_learning_docs.py
+python examples/learning/run_lab.py --lab all
+python -m pytest tests/test_learning_course.py -q -p no:cacheprovider
+```
+
+第一条检查 16 章文件、统一结构和相对链接；第二条只运行离线实验。真实模型实验必须单独调用 `real_model_lab.py`，缺少模型或依赖时输出 `SKIPPED`，不会自动回退到 Mock 后声称真实验证通过。
+
 ## 事实来源顺序
 
 1. 当前源码与测试。

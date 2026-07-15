@@ -65,6 +65,10 @@ agentrag ask "精确型号 X100" --backend ivfpq --index-path ./data/kb.ivfpq --
 agentrag ask "你的问题" --hybrid --reranker-model BAAI/bge-reranker-base
 ```
 
+### 系统学习课程
+
+仓库内置 16 章中文、源码驱动的 RAG 系统课程，包含离线实验、练习与折叠答案，并明确区分已实现能力和预研规划。从 [docs/learning/README.md](docs/learning/README.md) 开始；快速路径不会下载 GGUF 或 Cross-Encoder 模型。
+
 ### 技术栈
 
 | 组件 | 选型 | 理由 |
@@ -99,7 +103,7 @@ agentrag ask "你的问题" --hybrid --reranker-model BAAI/bge-reranker-base
 ### 测试
 
 ```bash
-pytest tests/ -v   # 46/46 passed
+pytest tests/ -v   # 49/49 passed
 ```
 
 P1 合成检索快照（5,000 个随机向量，不代表真实 RAG 质量基线）：

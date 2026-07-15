@@ -737,5 +737,45 @@
 2. 在中英文 README 接入课程入口并运行完整回归
 
 ### Git
-- 提交：待创建
+- 提交：`348a42d`
 - 信息：`docs: 完成评估与预研学习章节`
+
+---
+
+## 2026-07-16 00:32 | 系统学习课程：集成与验收
+
+### 当前目标
+- 将完整课程接入项目入口，并建立可重复的文档与实验验收
+
+### 完成内容
+- 中英文 README 增加系统学习课程入口
+- 新增课程检查器，验证 16 章文件、统一结构和相对 Markdown 链接
+- 新增 3 个课程测试：文档校验、15 个离线实验 smoke、真实模型缺失显式跳过
+- 同步课程指南、TODO 和 README 的 49/49 测试状态
+
+### 修改文件
+- `README.md`、`README-cn.md`：课程入口与测试数字
+- `docs/learning/README.md`、`docs/learning/00_course_guide.md`：验收命令与当前基线
+- `scripts/check_learning_docs.py`：课程结构和相对链接检查
+- `tests/test_learning_course.py`：离线课程验收
+- `.gitignore`：忽略 pytest 缓存与课程验证临时目录
+- `TODO.md`：完成课程建设任务
+
+### 验证结果
+- `python scripts/check_learning_docs.py`：通过，16 章文件、统一结构和相对链接有效
+- `pytest tests/test_learning_course.py -q -p no:cacheprovider`：3 passed
+- `python -m compileall -q src scripts examples/learning`：通过
+- `pytest tests -q -p no:cacheprovider --basetemp=C:/Users/Public/agentrag-pytest-20260716`：49 passed
+
+### 问题与风险
+- 默认系统 pytest 临时目录存在权限错误；仓库中文路径还会触发 C++ 索引文件写入失败，因此完整验证使用纯 ASCII 临时目录
+- 真实 BGE、Cross-Encoder 和 GGUF 实验未执行；缺少模型时只报告 `SKIPPED`
+- 测试产生的临时目录未纳入 Git
+
+### 下一步
+1. 按课程 12 章设计真实 qrels 的 P2 评估基线
+2. 用户准备好模型后，再单独执行真实模型实验并记录硬件与原始输出
+
+### Git
+- 提交：待创建
+- 信息：`docs: 接入学习课程并增加验收测试`
