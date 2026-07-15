@@ -538,3 +538,54 @@
 ### Git
 - 提交：`59adada`
 - 信息：`feat: 完成 P1 Agent 集成与检索基准`
+
+---
+
+## 2026-07-15 21:18 | P1 推送前审计与可复现性完善
+
+### 当前目标
+- 在推送 P0/P1 的 8 个本地提交前，复核代码、文档、构建和基准结论是否一致
+- 修正会导致新环境无法按 README 运行或夸大已完成功能的内容
+
+### 完成内容
+- 将 README 快速安装改为包含实际必需的 embedding 可选依赖
+- 将架构图和技术栈中的 ONNX INT8、真实 Prefix KV 复用明确标记为规划或待验证，不再表述为已完成能力
+- 为 IVF-PQ 快速开始补充可选 C++ 扩展的构建步骤
+- 移除 `scripts/build_cpp.bat` 中写死的 Conda、CMake 和 MSVC 本机路径
+- 构建脚本改为自动发现 Python/CMake/pybind11/标准 MSVC，并支持 `AGENTRAG_PYTHON`、`AGENTRAG_CMAKE`、`AGENTRAG_VCVARS` 覆盖非标准安装
+- 校正默认 BGE-small 嵌入维度注释、索引路径和 MockLLM/逻辑 Prefix Cache 配置说明
+- 复核同参数检索基准，Recall@10 和索引数据量与已保存 CSV 一致
+
+### 修改文件
+- `scripts/build_cpp.bat`：移除机器专用路径并增加工具链发现与覆盖变量
+- `README.md` / `README-cn.md`：修正安装步骤、架构现状和技术栈边界
+- `configs/default.yaml`：标注配置尚未由 CLI 自动加载并校正错误注释
+- `src/generation/prefix_cache.py`：避免把逻辑缓存管理描述成已实现 KV 复用
+- `LOG.md`：记录本次推送前审计
+
+### 验证结果
+- C++ 构建：使用非标准工具链覆盖变量执行 `scripts\\build_cpp.bat`，配置和构建成功，扩展存在
+- 完整测试：`46 passed in 1.08s`
+- Python 编译检查：`python -m compileall -q src scripts` 通过
+- CLI 检查：`python -m src.cli.main --help` 通过，index/ask/chat/serve 命令可见
+- 基准复跑：NumPy Recall@10=1.0、1,280,000 bytes；IVF-PQ Recall@10=0.23、80,480 bytes
+- 基准复跑平均查询时间：NumPy 0.074439 ms，IVF-PQ 0.048475 ms；时间仅作为当前机器快照
+
+### 关键结论
+- P1 状态、测试数字、实现边界和 README 现已一致
+- 已保存基准的低召回结论可复现，IVF-PQ 继续保持显式启用而非默认后端
+- 构建脚本不再依赖仓库作者的绝对路径，非标准 MSVC 安装可通过环境变量明确指定
+
+### 问题与风险
+- pytest 因现有 `.pytest_cache` 目录权限产生 1 条缓存写入警告，不影响 46 个测试结果；未擅自删除该目录
+- 未下载或运行真实 GGUF、Cross-Encoder 模型，相关能力仍按待验证标记
+- 尚未执行远程推送；推送将在最终提交边界检查后进行
+
+### 下一步
+1. 检查 diff、敏感信息和暂存边界
+2. 创建本地审计提交并更新提交记录
+3. 推送 `master`，再确认本地与远端同步状态
+
+### Git
+- 提交：待创建
+- 信息：`docs: 完善 P1 推送前可复现性说明`

@@ -1,6 +1,6 @@
 """
 ================================================================================
-Layer 5: Prefix Caching —— 复用系统提示和检索结果的 KV Cache
+Layer 5: Prefix Cache 管理 —— 为后续真实 KV 复用准备稳定前缀
 ================================================================================
 
 核心思想：
@@ -72,7 +72,7 @@ class PrefixCache:
         """存储缓存条目
 
         Phase 3: cache_data 是占位符，
-        Phase 3+: 实际存储 llama.cpp 的 KV Cache 序列引用
+        后续研究：若底层 API 可用，再存储可复用的 KV Cache 句柄
         """
         if key in self._cache:
             self._cache.move_to_end(key)

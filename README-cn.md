@@ -29,17 +29,17 @@
 ### 架构
 
 ```
-CLI / API  -->  Agent React 循环  -->  llama.cpp 生成器
+CLI（API 规划中）--> Agent ReAct 循环 --> llama.cpp 生成器
                      |                       |
                      |                       +-- KV Cache 监控
-                     |                       +-- Prefix Caching
+                     |                       +-- 逻辑 Prefix 统计
                      |
                      +-- 混合检索器 --> 重排序器
                      |       |
                      |       +-- IVF-PQ 稠密索引 (C++)
                      |       +-- BM25 稀疏索引 (C++)
                      |
-                     +-- ONNX INT8 嵌入 (BGE)
+                     +-- BGE 嵌入（ONNX INT8 规划中）
                      +-- 文档解析 + 分块
 ```
 
@@ -48,12 +48,16 @@ CLI / API  -->  Agent React 循环  -->  llama.cpp 生成器
 ```bash
 git clone https://github.com/ssG12333/agentRAG.git
 cd agentRAG
-pip install -e .
+pip install -e ".[embedding]"
 
 agentrag index --path ./your-docs/
 agentrag ask "Transformer 的计算复杂度是多少？" --show-sources
 
 # 残差 IVF-PQ + BM25/RRF 混合检索
+# Windows：先安装 pybind11/CMake 并构建可选 C++ 扩展
+python -m pip install pybind11 cmake ninja
+scripts\build_cpp.bat
+# MSVC 位于非标准目录时，将 AGENTRAG_VCVARS 指向 vcvars64.bat
 agentrag index --path ./your-docs/ --backend ivfpq --save ./data/kb.ivfpq
 agentrag ask "精确型号 X100" --backend ivfpq --index-path ./data/kb.ivfpq --hybrid
 
@@ -66,8 +70,8 @@ agentrag ask "你的问题" --hybrid --reranker-model BAAI/bge-reranker-base
 | 组件 | 选型 | 理由 |
 |------|------|------|
 | 嵌入模型 | BGE-small-zh / BGE-base-zh | 中文友好，支持 ONNX 导出 |
-| 生成模型 | Qwen2.5-3B-Instruct (GGUF Q4) | 6GB 显存，Agent 推理够用 |
-| 推理引擎 | llama.cpp | 纯 C++ 内核，KV Cache API 完备 |
+| 生成模型 | llama.cpp 兼容 GGUF（目标 Qwen2.5-3B） | 本地生成；真实 GGUF 验证待完成 |
+| 推理引擎 | llama.cpp Python 绑定 | 已有 KV 监控；尚未接入真实 Prefix KV 复用 |
 | 稠密索引 | 自研 IVF-PQ (C++) | 不用 FAISS，理解每行代码 |
 | 稀疏索引 | 自研 BM25 (C++) | 倒排索引 + jieba 分词 |
 | 重排序 | BGE-reranker-base (Cross-Encoder) | Phase 2 起 |

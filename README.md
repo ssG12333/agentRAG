@@ -29,17 +29,17 @@ Most RAG tutorials teach you to call a one-liner from LangChain. It works, but y
 ### Architecture
 
 ```
-CLI / API  -->  Agent React Loop  -->  llama.cpp Generator
+CLI (API planned) --> Agent ReAct Loop --> llama.cpp Generator
                      |                       |
                      |                       +-- KV Cache Monitor
-                     |                       +-- Prefix Caching
+                     |                       +-- Logical Prefix Stats
                      |
                      +-- Hybrid Retriever --> Reranker
                      |       |
                      |       +-- IVF-PQ Dense Index (C++)
                      |       +-- BM25 Sparse Index (C++)
                      |
-                     +-- ONNX INT8 Embedding (BGE)
+                     +-- BGE Embedding (ONNX INT8 planned)
                      +-- Document Parser + Chunker
 ```
 
@@ -48,12 +48,16 @@ CLI / API  -->  Agent React Loop  -->  llama.cpp Generator
 ```bash
 git clone https://github.com/ssG12333/agentRAG.git
 cd agentRAG
-pip install -e .
+pip install -e ".[embedding]"
 
 agentrag index --path ./your-docs/
 agentrag ask "What is the complexity of self-attention?" --show-sources
 
 # Residual IVF-PQ + BM25/RRF hybrid retrieval
+# Windows: install pybind11/CMake and build the optional C++ extension first
+python -m pip install pybind11 cmake ninja
+scripts\build_cpp.bat
+# For a non-standard MSVC install, set AGENTRAG_VCVARS to vcvars64.bat
 agentrag index --path ./your-docs/ --backend ivfpq --save ./data/kb.ivfpq
 agentrag ask "Exact model X100" --backend ivfpq --index-path ./data/kb.ivfpq --hybrid
 
@@ -66,8 +70,8 @@ agentrag ask "your question" --hybrid --reranker-model BAAI/bge-reranker-base
 | Component | Choice | Why |
 |-----------|--------|-----|
 | Embedding | BGE-small-zh / BGE-base-zh | Chinese-friendly, ONNX exportable |
-| Generation | Qwen2.5-3B-Instruct (GGUF Q4) | Fits 6GB VRAM, Agent-capable |
-| Inference | llama.cpp | Pure C++ kernel, full KV Cache API |
+| Generation | llama.cpp-compatible GGUF (Qwen2.5-3B target) | Local generation; real GGUF validation pending |
+| Inference | llama.cpp Python binding | KV monitoring exists; real prefix KV reuse is not integrated |
 | Dense Index | Self-built IVF-PQ (C++) | No FAISS black box |
 | Sparse Index | Self-built BM25 (C++) | Inverted index + jieba |
 | Reranker | BGE-reranker-base (Cross-Encoder) | Phase 2+ |
