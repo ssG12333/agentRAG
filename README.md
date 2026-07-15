@@ -52,6 +52,13 @@ pip install -e .
 
 agentrag index --path ./your-docs/
 agentrag ask "What is the complexity of self-attention?" --show-sources
+
+# Residual IVF-PQ + BM25/RRF hybrid retrieval
+agentrag index --path ./your-docs/ --backend ivfpq --save ./data/kb.ivfpq
+agentrag ask "Exact model X100" --backend ivfpq --index-path ./data/kb.ivfpq --hybrid
+
+# Cross-Encoder reranking is opt-in and may download the specified model
+agentrag ask "your question" --hybrid --reranker-model BAAI/bge-reranker-base
 ```
 
 ### Tech Stack
@@ -88,7 +95,7 @@ agentrag ask "What is the complexity of self-attention?" --show-sources
 ### Tests
 
 ```bash
-pytest tests/ -v   # 34/34 passed
+pytest tests/ -v   # 42/42 passed
 ```
 
 ### License

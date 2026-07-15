@@ -45,7 +45,7 @@
 - [x] 2.10 Python 稀疏存储层 (SparseRetriever)
 - [x] 2.11 混合检索融合 (RRF)
 - [x] 2.12 Cross-encoder 重排序组件
-- [ ] 2.13 HybridRetriever + reranker 接入 index/ask/chat 主链路
+- [x] 2.13 可配置 dense/IVF-PQ + BM25/RRF + reranker 接入 index/ask/chat 主链路
 - [x] 2.14 Python/C++ 集成回归（完整测试 29/29）
 - [x] 2.15a IVF-PQ C++/Python 正确性与持久化测试
 - [ ] 2.15b numpy/C++ 性能、召回率与内存基准
@@ -77,7 +77,7 @@
 ### P1：完成主链路集成
 
 - [x] 明确 Phase 2 范围：实现真正的残差 IVF-PQ
-- [ ] 将 HybridRetriever 和 reranker 接入 CLI 检索流程
+- [x] 将 HybridRetriever 和 reranker 接入 CLI 检索流程
 - [ ] 将 PrefixAwareEngine 接入 ReActAgent，或明确降级为缓存管理实验
 - [ ] 增加检索、Agent 和 CLI 端到端测试
 - [ ] 完成 C++ 正确性测试和性能基准

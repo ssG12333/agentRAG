@@ -23,6 +23,7 @@ Phase 2 升级（C++ IVF-PQ）：
 """
 
 from abc import ABC, abstractmethod
+import json
 from pathlib import Path
 from typing import List, Tuple
 
@@ -76,6 +77,12 @@ class BaseVectorStore(ABC):
         """存储中向量的数量"""
         ...
 
+    @property
+    @abstractmethod
+    def chunks(self) -> List[Chunk]:
+        """返回与索引 ID 对齐的 chunk 列表。"""
+        ...
+
 
 class NumpyVectorStore(BaseVectorStore):
     """基于 numpy 的内存向量存储
@@ -97,6 +104,10 @@ class NumpyVectorStore(BaseVectorStore):
 
     def __len__(self) -> int:
         return len(self._chunks)
+
+    @property
+    def chunks(self) -> List[Chunk]:
+        return self._chunks
 
     @property
     def dim(self) -> int | None:
@@ -172,7 +183,7 @@ class NumpyVectorStore(BaseVectorStore):
         存储内容：
           - vectors:  (n, dim) float32
           - chunk_ids / chunk_contents / chunk_doc_ids: 元数据
-          - 注意 metadata 字典不持久化（仅保留核心字段），Phase 5 再完善
+          - metadata 以 JSON 字符串持久化
         """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -183,30 +194,44 @@ class NumpyVectorStore(BaseVectorStore):
             chunk_ids=np.array([c.id for c in self._chunks]),
             chunk_contents=np.array([c.content for c in self._chunks]),
             chunk_doc_ids=np.array([c.document_id for c in self._chunks]),
+            chunk_metadata=np.array([
+                json.dumps(c.metadata, ensure_ascii=False, default=str)
+                for c in self._chunks
+            ]),
         )
 
     def load(self, path: str) -> None:
         """从 .npz 文件恢复索引
 
-        恢复后的 Chunk metadata 为空字典（Phase 1 限制），
-        Phase 5 将使用 SQLite 完整持久化元数据。
+        兼容旧索引：缺少 chunk_metadata 字段时使用空字典。
         """
         path = Path(path)
         # 兼容传入带或不带 .npz 后缀的路径
-        if not path.with_suffix(".npz").exists() and not path.exists():
-            raise FileNotFoundError(f"索引文件不存在: {path}")
+        if not path.exists():
+            candidate = path.with_suffix(".npz")
+            if not candidate.exists():
+                raise FileNotFoundError(f"索引文件不存在: {path}")
+            path = candidate
 
-        data = np.load(path, allow_pickle=True)
-        self._vectors = data["vectors"]
-        self._chunks = [
-            Chunk(
-                id=str(cid),
-                document_id=str(did),
-                content=str(content),
-                metadata={},  # Phase 1: 不持久化完整 metadata
+        with np.load(path, allow_pickle=False) as data:
+            self._vectors = data["vectors"].copy()
+            metadata_values = (
+                data["chunk_metadata"]
+                if "chunk_metadata" in data.files
+                else ["{}"] * len(data["chunk_ids"])
             )
-            for cid, did, content in zip(
-                data["chunk_ids"], data["chunk_doc_ids"], data["chunk_contents"]
-            )
-        ]
+            self._chunks = [
+                Chunk(
+                    id=str(cid),
+                    document_id=str(did),
+                    content=str(content),
+                    metadata=json.loads(str(metadata)),
+                )
+                for cid, did, content, metadata in zip(
+                    data["chunk_ids"],
+                    data["chunk_doc_ids"],
+                    data["chunk_contents"],
+                    metadata_values,
+                )
+            ]
         self._normalized = True

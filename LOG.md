@@ -419,3 +419,58 @@
 ### Git
 - 提交：`cdd14df`
 - 信息：`feat: 实现残差 IVF-PQ 组合索引`
+
+---
+
+## 2026-07-15 19:58 | P1.2：可配置混合检索主链路
+
+### 当前目标
+- 将 Numpy/IVF-PQ 稠密后端、BM25/RRF 和可选 Cross-Encoder 重排序统一接入 index/ask/chat
+
+### 完成内容
+- 新增 `RetrievalPipeline`，统一 dense、hybrid 和 hybrid/dense + rerank 三种模式
+- `index` 新增 `--backend numpy|ivfpq` 及 IVF/PQ 参数；默认仍为 numpy
+- `ask`、`chat` 新增后端自动识别、`--hybrid`、reranker 模型/设备/候选数参数
+- Cross-Encoder 默认关闭，仅显式传入模型时延迟加载，避免默认下载模型
+- IVF-PQ 建索引改为先分批生成嵌入、再一次性构建静态索引
+- NumpyVectorStore 增加 chunk metadata JSON 持久化，同时兼容旧索引缺少 metadata 的情况
+- Numpy 和 IVF-PQ store 统一公开只读 `chunks` 接口，CLI 不再访问 `_chunks` 私有属性
+- 默认索引路径按后端选择 `.npz` 或 `.ivfpq`，显式传入路径时保持用户配置
+- 新增 8 个管道/CLI 测试，包括真实 IVFPQ + BM25 + RRF 组合和旧 numpy 索引兼容
+
+### 修改文件
+- `src/retrieval/pipeline.py`：统一检索管道
+- `src/cli/main.py`：后端、混合检索和重排序 CLI 接入
+- `src/index/vector_store.py`：公开 chunks、metadata 持久化和旧格式兼容
+- `src/index/ivfpq_store.py`：公开 chunks
+- `tests/test_retrieval_pipeline.py`：主链路和 CLI 测试
+- `configs/default.yaml`：补充 backend 与 hybrid 配置
+- `README.md` / `README-cn.md` / `TODO.md`：使用示例和状态同步
+
+### 验证结果
+- CLI 语法检查：`index --help`、`ask --help`、`chat --help` 均成功
+- 定向测试：检索管道、Phase 2 和 IVF-PQ 共 18 个测试通过
+- 完整测试：`42 passed in 1.09s`
+- 行为验证：默认 pipeline 为 dense；精确术语 `X100` 在 BM25/RRF 后升至第一
+- 组合验证：真实 `IVFPQVectorStore + SparseRetriever + RRF` 返回预期第一结果
+- reranker 验证：只处理配置的候选数，最终严格截断到 top_k
+- CLI 索引验证：IVF-PQ 静态后端只调用一次 add/build
+
+### 关键结论
+- P1 的检索主链路已经具备可配置接入，默认行为保持 numpy + dense-only
+- IVF-PQ、BM25/RRF 和 reranker 已能组合运行，但真实质量与性能仍需 P2 固定评估集验证
+- 重排序模型不作为默认依赖，避免在离线环境中造成隐式网络失败
+
+### 问题与风险
+- 稀疏索引目前在 ask/chat 加载时根据 chunks 重建，尚未独立持久化；大型知识库会增加启动时间
+- reranker 的真实模型推理未在本轮执行，原因是没有授权下载模型且当前只验证可选集成接口
+- IVF-PQ 仍为一次性静态构建，index 命令会暂存全部嵌入后统一训练
+- CLI 尚未读取 `configs/default.yaml`，本轮只同步了配置字段，没有引入新的配置加载机制
+
+### 下一步
+1. 将 PrefixAwareEngine 接入 ReActAgent，并增加工具调用到最终回答的端到端测试
+2. 建立固定查询—相关 chunk 评估集，测量 Recall@k、MRR、nDCG、延迟和内存
+3. 根据基准决定 BM25 持久化和 IVF-PQ 参数默认值
+
+### Git
+- 提交：待创建

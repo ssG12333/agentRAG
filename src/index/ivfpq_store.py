@@ -60,6 +60,10 @@ class IVFPQVectorStore(BaseVectorStore):
         return len(self._chunks)
 
     @property
+    def chunks(self) -> List[Chunk]:
+        return self._chunks
+
+    @property
     def dim(self) -> int | None:
         return int(self._index.dim) if len(self) else None
 

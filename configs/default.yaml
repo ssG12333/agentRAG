@@ -18,6 +18,7 @@ embedding:
 # 向量索引 (Phase 1: numpy 全遍历 / Phase 2: IVF-PQ C++)
 index:
   dense:
+    backend: "numpy"       # numpy | ivfpq
     # IVF 参数 (Phase 2)
     n_clusters: 256
     n_probe: 8
@@ -32,6 +33,7 @@ index:
 
 # 检索
 retrieval:
+  hybrid: false             # true: dense + BM25 + RRF
   top_k: 50                # 粗排候选数
   final_k: 5               # 最终返回数
   rerank:

@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import click
+import numpy as np
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -19,9 +20,54 @@ def _get_embedding(model_name: str, device: str, cache: bool = True):
     return CachedEmbedding(base) if cache else base
 
 
-def _get_vector_store():
-    from src.index.vector_store import NumpyVectorStore
-    return NumpyVectorStore()
+def _get_vector_store(backend: str, **kwargs):
+    if backend == "numpy":
+        from src.index.vector_store import NumpyVectorStore
+        return NumpyVectorStore()
+    if backend == "ivfpq":
+        from src.index.ivfpq_store import IVFPQVectorStore
+        return IVFPQVectorStore(**kwargs)
+    raise ValueError(f"未知索引后端: {backend}")
+
+
+def _resolve_backend(backend: str, index_path: str | None) -> str:
+    if backend != "auto":
+        return backend
+    if index_path and Path(index_path).suffix.lower() == ".ivfpq":
+        return "ivfpq"
+    return "numpy"
+
+
+def _resolve_index_path(index_path: str | None, backend: str) -> str:
+    if index_path:
+        return index_path
+    if backend == "ivfpq":
+        return "./data/vector_index.ivfpq"
+    return "./data/vector_index.npz"
+
+
+def _build_retrieval_pipeline(
+    embedder,
+    store,
+    *,
+    hybrid: bool,
+    reranker_model: str,
+    reranker_device: str,
+    rerank_top_n: int,
+):
+    from src.retrieval.pipeline import RetrievalPipeline
+    from src.retrieval.reranker import CrossEncoderReranker
+
+    reranker = None
+    if reranker_model:
+        reranker = CrossEncoderReranker(reranker_model, device=reranker_device)
+    return RetrievalPipeline(
+        embedder,
+        store,
+        hybrid=hybrid,
+        reranker=reranker,
+        rerank_top_n=rerank_top_n,
+    )
 
 
 def _get_llm(model_path: str, n_ctx: int, n_threads: int, temperature: float, top_p: float):
@@ -48,8 +94,25 @@ def main():
 @click.option("--chunk-overlap", default=64, help="分块重叠（字符数）")
 @click.option("--model", default="BAAI/bge-small-zh-v1.5", help="嵌入模型名")
 @click.option("--device", default="cpu", help="设备: cpu / cuda")
-@click.option("--save", default="./data/vector_index.npz", help="索引持久化路径")
-def index(path: str, chunk_size: int, chunk_overlap: int, model: str, device: str, save: str):
+@click.option("--backend", type=click.Choice(["numpy", "ivfpq"]), default="numpy", show_default=True)
+@click.option("--n-clusters", default=256, show_default=True, help="IVF 聚类数")
+@click.option("--n-probe", default=8, show_default=True, help="IVF 检索探测簇数")
+@click.option("--n-subvectors", default=64, show_default=True, help="PQ 子向量数")
+@click.option("--n-bits", default=8, show_default=True, help="PQ 每段编码位数")
+@click.option("--save", default=None, help="索引持久化路径")
+def index(
+    path: str,
+    chunk_size: int,
+    chunk_overlap: int,
+    model: str,
+    device: str,
+    backend: str,
+    n_clusters: int,
+    n_probe: int,
+    n_subvectors: int,
+    n_bits: int,
+    save: str | None,
+):
     """索引文档目录，构建向量知识库"""
     from pathlib import Path
     from src.document.parser import get_parser
@@ -57,7 +120,13 @@ def index(path: str, chunk_size: int, chunk_overlap: int, model: str, device: st
 
     embedder = _get_embedding(model, device)
     chunker = RecursiveChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-    store = _get_vector_store()
+    store = _get_vector_store(
+        backend,
+        n_clusters=n_clusters,
+        n_probe=n_probe,
+        n_subvectors=n_subvectors,
+        n_bits=n_bits,
+    )
 
     doc_dir = Path(path)
     files = list(doc_dir.rglob("*"))
@@ -83,16 +152,23 @@ def index(path: str, chunk_size: int, chunk_overlap: int, model: str, device: st
             console.print("[red]没有可索引的内容[/red]")
             return
         texts = [c.content for c in all_chunks]
+        embedding_batches = []
         for i in range(0, len(texts), 32):
             batch = texts[i:i+32]
-            store.add(embedder.embed(batch), all_chunks[i:i+32])
+            embedding_batches.append(np.asarray(embedder.embed(batch), dtype=np.float32))
             progress.update(task_e, completed=i+len(batch), total=len(texts))
+        store.add(np.vstack(embedding_batches), all_chunks)
 
+    save = _resolve_index_path(save, backend)
     Path(save).parent.mkdir(parents=True, exist_ok=True)
     store.save(save)
 
     console.print(f"\n[bold green]索引完成[/bold green]")
-    console.print(f"  文档: {len(supported)}  分块: {len(store)}  维度: {store.dim}  缓存: {embedder.hit_rate:.0%}")
+    console.print(
+        f"  后端: {backend}  文档: {len(supported)}  分块: {len(store)}  "
+        f"维度: {store.dim}  缓存: {embedder.hit_rate:.0%}"
+    )
+    console.print(f"  索引: {save}")
 
 
 @main.command()
@@ -100,18 +176,28 @@ def index(path: str, chunk_size: int, chunk_overlap: int, model: str, device: st
 @click.option("--top-k", default=5, help="检索数量")
 @click.option("--temperature", default=0.7, help="生成温度")
 @click.option("--show-sources", is_flag=True, help="显示引用来源")
-@click.option("--index-path", default="./data/vector_index.npz", help="索引文件路径")
+@click.option("--index-path", default=None, help="索引文件路径")
+@click.option("--backend", type=click.Choice(["auto", "numpy", "ivfpq"]), default="auto", show_default=True)
+@click.option("--hybrid/--dense-only", default=False, show_default=True, help="启用 BM25 + RRF")
+@click.option("--reranker-model", default="", help="Cross-Encoder 模型；留空关闭")
+@click.option("--reranker-device", default="cpu", help="重排序设备")
+@click.option("--rerank-top-n", default=30, show_default=True, help="送入重排序的候选数")
 @click.option("--model-path", default="", help="GGUF 模型路径")
 @click.option("--n-ctx", default=4096, help="上下文窗口大小")
 @click.option("--n-threads", default=8, help="CPU 线程数")
 @click.option("--embed-model", default="BAAI/bge-small-zh-v1.5", help="嵌入模型名")
 @click.option("--device", default="cpu", help="设备: cpu / cuda")
-def ask(query, top_k, temperature, show_sources, index_path, model_path, n_ctx, n_threads, embed_model, device):
+def ask(
+    query, top_k, temperature, show_sources, index_path, backend, hybrid,
+    reranker_model, reranker_device, rerank_top_n, model_path, n_ctx,
+    n_threads, embed_model, device,
+):
     """单次问答：从知识库检索并生成回答"""
-    from src.retrieval.retriever import Retriever
     from src.generation.prompt import RAGPromptBuilder
 
-    store = _get_vector_store()
+    backend = _resolve_backend(backend, index_path)
+    index_path = _resolve_index_path(index_path, backend)
+    store = _get_vector_store(backend)
     index_file = Path(index_path)
     if not index_file.exists():
         console.print(f"[red]索引文件不存在: {index_path}[/red]")
@@ -119,7 +205,14 @@ def ask(query, top_k, temperature, show_sources, index_path, model_path, n_ctx, 
 
     store.load(str(index_file))
     embedder = _get_embedding(embed_model, device)
-    retriever = Retriever(embedder, store)
+    retriever = _build_retrieval_pipeline(
+        embedder,
+        store,
+        hybrid=hybrid,
+        reranker_model=reranker_model,
+        reranker_device=reranker_device,
+        rerank_top_n=rerank_top_n,
+    )
     llm = _get_llm(model_path, n_ctx, n_threads, temperature, 0.9)
     prompt_builder = RAGPromptBuilder()
 
@@ -145,29 +238,45 @@ def ask(query, top_k, temperature, show_sources, index_path, model_path, n_ctx, 
 
 
 @main.command()
-@click.option("--index-path", default="./data/vector_index.npz", help="索引文件路径")
+@click.option("--index-path", default=None, help="索引文件路径")
+@click.option("--backend", type=click.Choice(["auto", "numpy", "ivfpq"]), default="auto", show_default=True)
+@click.option("--hybrid/--dense-only", default=False, show_default=True, help="启用 BM25 + RRF")
+@click.option("--reranker-model", default="", help="Cross-Encoder 模型；留空关闭")
+@click.option("--reranker-device", default="cpu", help="重排序设备")
+@click.option("--rerank-top-n", default=30, show_default=True, help="送入重排序的候选数")
 @click.option("--model-path", default="", help="GGUF 模型路径")
 @click.option("--n-ctx", default=4096, help="上下文窗口大小")
 @click.option("--n-threads", default=8, help="CPU 线程数")
 @click.option("--embed-model", default="BAAI/bge-small-zh-v1.5", help="嵌入模型名")
 @click.option("--device", default="cpu", help="设备: cpu / cuda")
 @click.option("--verbose", is_flag=True, help="显示 Agent 思考过程")
-def chat(index_path, model_path, n_ctx, n_threads, embed_model, device, verbose):
+def chat(
+    index_path, backend, hybrid, reranker_model, reranker_device,
+    rerank_top_n, model_path, n_ctx, n_threads, embed_model, device, verbose,
+):
     """交互式对话 —— Agent 模式（工具调用 + 多轮记忆）"""
     from src.agent.tools import Tool, ToolRegistry
     from src.agent.memory import ConversationMemory
     from src.agent.loop import ReActAgent
-    from src.retrieval.retriever import Retriever
     from src.retrieval.rewriter import QueryRewriter
 
     # 加载索引和检索器
-    store = _get_vector_store()
+    backend = _resolve_backend(backend, index_path)
+    index_path = _resolve_index_path(index_path, backend)
+    store = _get_vector_store(backend)
     index_file = Path(index_path)
     if index_file.exists():
         store.load(str(index_file))
-        console.print(f"[dim]已加载索引: {len(store)} chunks[/dim]")
+        console.print(f"[dim]已加载 {backend} 索引: {len(store)} chunks[/dim]")
     embedder = _get_embedding(embed_model, device)
-    retriever = Retriever(embedder, store)
+    retriever = _build_retrieval_pipeline(
+        embedder,
+        store,
+        hybrid=hybrid,
+        reranker_model=reranker_model,
+        reranker_device=reranker_device,
+        rerank_top_n=rerank_top_n,
+    )
     llm = _get_llm(model_path, n_ctx, n_threads, 0.7, 0.9)
     rewriter = QueryRewriter(llm)
 
@@ -194,7 +303,7 @@ def chat(index_path, model_path, n_ctx, n_threads, embed_model, device, verbose)
     agent = ReActAgent(llm, registry, memory, max_steps=5, verbose=verbose)
 
     console.print("[bold]agentRAG 交互对话[/bold] (输入 /exit 退出, /clear 清空记忆, /cache 查看缓存, /docs 列出文档)")
-    console.print(f"已加载 {len(registry)} 个工具")
+    console.print(f"已加载 {len(registry)} 个工具，检索模式: {retriever.mode}")
 
     while True:
         try:
@@ -250,7 +359,7 @@ def _list_docs(store):
     """列出已索引文档（去重）"""
     from collections import Counter
     sources = Counter()
-    for c in store._chunks:
+    for c in store.chunks:
         sources[c.metadata.get("file_name", "?")] += 1
     if not sources:
         return "(无已索引文档)"

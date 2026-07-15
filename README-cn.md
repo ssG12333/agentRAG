@@ -52,6 +52,13 @@ pip install -e .
 
 agentrag index --path ./your-docs/
 agentrag ask "Transformer 的计算复杂度是多少？" --show-sources
+
+# 残差 IVF-PQ + BM25/RRF 混合检索
+agentrag index --path ./your-docs/ --backend ivfpq --save ./data/kb.ivfpq
+agentrag ask "精确型号 X100" --backend ivfpq --index-path ./data/kb.ivfpq --hybrid
+
+# Cross-Encoder 重排序默认关闭；显式启用时可能下载指定模型
+agentrag ask "你的问题" --hybrid --reranker-model BAAI/bge-reranker-base
 ```
 
 ### 技术栈
@@ -88,7 +95,7 @@ agentrag ask "Transformer 的计算复杂度是多少？" --show-sources
 ### 测试
 
 ```bash
-pytest tests/ -v   # 34/34 passed
+pytest tests/ -v   # 42/42 passed
 ```
 
 ### 许可证
