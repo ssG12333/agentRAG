@@ -1,5 +1,10 @@
 # agentRAG — 从零搭建本地轻量 RAG Agent 实施计划
 
+> [!WARNING]
+> 本文件是 2026-07-14 的历史实施设想，不代表当前已实现能力。请以
+> [`TODO.md`](TODO.md)、[`LOG.md`](LOG.md)、当前源码和测试为准。尤其是 ONNX INT8、
+> 真实 Prefix KV Cache 复用、FastAPI 和生产化能力仍属于后续研究或规划。
+
 > 最后更新：2026-07-14
 > 状态：规划中
 
